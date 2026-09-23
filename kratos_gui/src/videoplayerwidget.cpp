@@ -1,6 +1,13 @@
 #include "videoplayerwidget.h"
 #include <QDebug>
 
+// Rover (Jetson) address, needed for the AV1 streams' TCP connection.
+// UDP (H.265) streams are pushed to us, so they don't use it.
+static QString roverHost() {
+  const QString env = qEnvironmentVariable("KRATOS_ROVER_HOST");
+  return env.isEmpty() ? QStringLiteral("192.168.1.10") : env;
+}
+
 VideoPlayerWidget::VideoPlayerWidget(const QString &cameraName, int port,
                                      RosWorker *rosWorker, QWidget *parent)
     : QWidget(parent), cameraName_(cameraName), port_(port),
@@ -49,7 +56,8 @@ void VideoPlayerWidget::startStream() {
 
   QMetaObject::invokeMethod(
       videoWorker_, "startPipeline", Qt::QueuedConnection,
-      Q_ARG(QString, "192.168.1.10"), Q_ARG(int, port_));
+      Q_ARG(QString, roverHost()), Q_ARG(int, port_),
+      Q_ARG(QString, encoder_));
 }
 
 void VideoPlayerWidget::stopStream() {
@@ -61,12 +69,14 @@ void VideoPlayerWidget::stopStream() {
   videoLabel_->setPixmap(QPixmap()); // Clear the image
 }
 
-void VideoPlayerWidget::switchStream(const QString &cameraName, int port) {
+void VideoPlayerWidget::switchStream(const QString &cameraName, int port,
+                                     const QString &encoder) {
   if (streaming_) {
     stopStream();
   }
   cameraName_ = cameraName;
   port_ = port;
+  encoder_ = encoder;
   startStream();
 }
 

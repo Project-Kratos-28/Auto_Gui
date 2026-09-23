@@ -652,7 +652,7 @@ void CameraWidget::onCellStreamChanged(int cellIndex) {
   const CameraInfo &cam = knownCameras_[camIndex];
   cell.assignedCamera = cam.name;
 
-  cell.player->switchStream(cam.name, cam.port);
+  cell.player->switchStream(cam.name, cam.port, cam.encoder);
 }
 
 

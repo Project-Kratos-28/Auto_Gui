@@ -23,7 +23,8 @@ public:
   bool isStreaming() const { return streaming_; }
 
   /// Switch this player to a different camera stream (stops old, starts new).
-  void switchStream(const QString &cameraName, int port);
+  void switchStream(const QString &cameraName, int port,
+                    const QString &encoder);
 
 public slots:
   void startStream();
@@ -36,6 +37,7 @@ private slots:
 private:
   QString cameraName_;
   int port_;
+  QString encoder_;
   RosWorker *rosWorker_;
   bool streaming_ = false;
 

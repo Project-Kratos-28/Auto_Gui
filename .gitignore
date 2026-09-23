@@ -1,1 +1,6 @@
 .vscode/
+
+# colcon build output (build in ~/kratos_gui_ws, not here; see README)
+build/
+install/
+log/

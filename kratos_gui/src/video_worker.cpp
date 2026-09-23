@@ -20,9 +20,10 @@ VideoWorker::~VideoWorker() { stopPipeline(); }
 
 // ─── Start Pipeline ────────────────────────────────────────────────
 
-void VideoWorker::startPipeline(QString host, int port) {
+void VideoWorker::startPipeline(QString host, int port, QString encoder) {
   lastHost_ = host;
   lastPort_ = port;
+  lastEncoder_ = encoder;
   retryCount_ = 0;
   retryPipeline();
 }
@@ -31,21 +32,35 @@ void VideoWorker::retryPipeline() {
   // Tear down any existing pipeline first
   stopPipeline();
 
-  // H265 decoding over UDP
-  // Jetson sender uses: nvv4l2h265enc ! h265parse ! rtph265pay ! udpsink
-  // GUI receives via UDP, extracts RTP payload, decodes with avdec_h265 (CPU)
+  // Common tail: whatever the decoder outputs becomes 720p RGB for QImage
+  const QString toAppSink =
+      "! videoconvert "
+      "! videoscale "
+      "! video/x-raw,width=1280,height=720,format=RGB "
+      "! appsink name=sink emit-signals=true sync=false";
 
-  QString pipelineStr =
-      QString("udpsrc port=%1 "
-              "! application/x-rtp,media=video,encoding-name=H265,payload=96 "
-              "! rtph265depay "
-              "! h265parse "
-              "! avdec_h265 "
-              "! videoconvert "
-              "! videoscale "
-              "! video/x-raw,width=1280,height=720,format=RGB "
-              "! appsink name=sink emit-signals=true sync=false")
-          .arg(lastPort_);
+  QString pipelineStr;
+  if (lastEncoder_ == "av1") {
+    // Jetson sender: nvv4l2av1enc ! av1parse ! matroskamux ! tcpserversink
+    // decodebin picks whichever AV1 decoder is installed (dav1d, libaom)
+    pipelineStr = QString("tcpclientsrc host=%1 port=%2 "
+                          "! matroskademux "
+                          "! decodebin ")
+                      .arg(lastHost_)
+                      .arg(lastPort_) +
+                  toAppSink;
+  } else {
+    // Jetson sender: nvv4l2h265enc ! h265parse ! rtph265pay ! udpsink
+    // GUI receives via UDP, extracts RTP payload, decodes with avdec_h265 (CPU)
+    pipelineStr =
+        QString("udpsrc port=%1 "
+                "! application/x-rtp,media=video,encoding-name=H265,payload=96 "
+                "! rtph265depay "
+                "! h265parse "
+                "! avdec_h265 ")
+            .arg(lastPort_) +
+        toAppSink;
+  }
 
   GError *error = nullptr;
   pipeline_ = gst_parse_launch(pipelineStr.toUtf8().constData(), &error);

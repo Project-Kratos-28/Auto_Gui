@@ -1,6 +1,8 @@
 #include "ros_worker.h"
 #include <QDebug>
 
+#include <cmath>
+
 RosWorker::RosWorker(QObject *parent) : QObject(parent) {}
 
 RosWorker::~RosWorker() {
@@ -9,6 +11,11 @@ RosWorker::~RosWorker() {
   }
   cameraSub_.reset();
   joySub_.reset();
+  addWaypointClient_.reset();
+  getWaypointClient_.reset();
+  listWaypointsClient_.reset();
+  saveWaypointsClient_.reset();
+  setAutoClient_.reset();
   stopStreamClient_.reset();
   node_.reset();
 }
@@ -29,6 +36,24 @@ void RosWorker::init() {
           "/kratos/cameras/start_stream");
   stopStreamClient_ = node_->create_client<kratos_msgs::srv::StopCameraStream>(
       "/kratos/cameras/stop_stream");
+
+  // Served by GLIM's waypoint_manager extension (auto_fastlio2)
+  addWaypointClient_ =
+      node_->create_client<waypoint_interfaces::srv::AddWaypoint>(
+          "/add_waypoint");
+  getWaypointClient_ =
+      node_->create_client<waypoint_interfaces::srv::GetWaypoint>(
+          "/get_waypoint");
+  listWaypointsClient_ =
+      node_->create_client<waypoint_interfaces::srv::ListWaypoints>(
+          "/list_waypoints");
+  saveWaypointsClient_ =
+      node_->create_client<waypoint_interfaces::srv::SaveWaypoints>(
+          "/save_waypoints");
+
+  // Served by kratos_nav's rover_bridge.py
+  setAutoClient_ =
+      node_->create_client<std_srvs::srv::SetBool>("/rover_bridge/set_auto");
 
   // Spin ROS node without blocking Qt event loop
   spinTimer_ = new QTimer(this);
@@ -51,6 +76,13 @@ void RosWorker::init() {
     }
   });
   serverAliveTimer_->start(3000); // Expect a message every <3 seconds
+
+  // Waypoint list refresh. Pending waypoints bind once their submap closes,
+  // so the list changes without anyone calling /add_waypoint.
+  waypointPollTimer_ = new QTimer(this);
+  connect(waypointPollTimer_, &QTimer::timeout, this,
+          &RosWorker::pollWaypoints);
+  waypointPollTimer_->start(1000);
 }
 
 void RosWorker::onCameraListReceived(
@@ -61,6 +93,7 @@ void RosWorker::onCameraListReceived(
     info.name = QString::fromStdString(cam.camera_name);
     info.active = cam.active;
     info.port = cam.port;
+    info.encoder = QString::fromStdString(cam.encoder);
     cameras.append(info);
   }
 
@@ -112,5 +145,119 @@ void RosWorker::callStopStream(QString cameraName) {
           rclcpp::Client<kratos_msgs::srv::StopCameraStream>::SharedFuture f) {
         auto res = f.get();
         emit serviceResult(res->success, QString::fromStdString(res->message));
+      });
+}
+
+// ─── GLIM waypoint_manager ─────────────────────────────────────────
+
+void RosWorker::pollWaypoints() {
+  const bool online = listWaypointsClient_->service_is_ready();
+  if (online != isWaypointServiceOnline_) {
+    isWaypointServiceOnline_ = online;
+    emit waypointServiceStatusChanged(online);
+  }
+  // A request GLIM never answered (e.g. it restarted) would block polling
+  // forever, so give up on it after a few seconds.
+  if (listInFlight_ && listSentAt_.elapsed() > 5000) {
+    listWaypointsClient_->prune_pending_requests();
+    listInFlight_ = false;
+  }
+  // Never queue a second request behind one GLIM hasn't answered yet
+  if (!online || listInFlight_) {
+    return;
+  }
+
+  listInFlight_ = true;
+  listSentAt_.start();
+  listWaypointsClient_->async_send_request(
+      std::make_shared<waypoint_interfaces::srv::ListWaypoints::Request>(),
+      [this](rclcpp::Client<waypoint_interfaces::srv::ListWaypoints>::SharedFuture
+                 f) {
+        listInFlight_ = false;
+        QStringList names;
+        for (const auto &n : f.get()->names) {
+          names.append(QString::fromStdString(n));
+        }
+        emit waypointsListed(names);
+      });
+}
+
+void RosWorker::callAddWaypoint(QString name) {
+  if (!addWaypointClient_->service_is_ready()) {
+    emit waypointAdded(false, name,
+                       "/add_waypoint not available (is GLIM running?)");
+    return;
+  }
+  auto req = std::make_shared<waypoint_interfaces::srv::AddWaypoint::Request>();
+  req->name = name.toStdString();
+
+  addWaypointClient_->async_send_request(
+      req,
+      [this, name](
+          rclcpp::Client<waypoint_interfaces::srv::AddWaypoint>::SharedFuture f) {
+        auto res = f.get();
+        emit waypointAdded(res->success, name,
+                           QString::fromStdString(res->message));
+        pollWaypoints();
+      });
+}
+
+void RosWorker::callGetWaypoint(QString name) {
+  if (!getWaypointClient_->service_is_ready()) {
+    emit waypointResolved(name, false, 0, 0, 0, 0);
+    return;
+  }
+  auto req = std::make_shared<waypoint_interfaces::srv::GetWaypoint::Request>();
+  req->name = name.toStdString();
+
+  getWaypointClient_->async_send_request(
+      req,
+      [this, name](
+          rclcpp::Client<waypoint_interfaces::srv::GetWaypoint>::SharedFuture f) {
+        auto res = f.get();
+        const auto &p = res->pose.pose.position;
+        const auto &q = res->pose.pose.orientation;
+        const double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y),
+                                      1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+        emit waypointResolved(name, res->found, p.x, p.y, p.z, yaw);
+      });
+}
+
+void RosWorker::callSaveWaypoints(QString path) {
+  if (!saveWaypointsClient_->service_is_ready()) {
+    emit waypointsSaved(false,
+                        "/save_waypoints not available (is GLIM running?)");
+    return;
+  }
+  auto req =
+      std::make_shared<waypoint_interfaces::srv::SaveWaypoints::Request>();
+  req->path = path.toStdString();
+
+  saveWaypointsClient_->async_send_request(
+      req,
+      [this](rclcpp::Client<waypoint_interfaces::srv::SaveWaypoints>::SharedFuture
+                 f) {
+        auto res = f.get();
+        emit waypointsSaved(res->success, QString::fromStdString(res->message));
+      });
+}
+
+// ─── rover_bridge ──────────────────────────────────────────────────
+
+void RosWorker::callSetAutoMode(bool autoMode) {
+  if (!setAutoClient_->service_is_ready()) {
+    emit autoModeResult(
+        autoMode, false,
+        "/rover_bridge/set_auto not available (is rover_bridge.py running?)");
+    return;
+  }
+  auto req = std::make_shared<std_srvs::srv::SetBool::Request>();
+  req->data = autoMode;
+
+  setAutoClient_->async_send_request(
+      req, [this, autoMode](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture f) {
+        auto res = f.get();
+        emit autoModeResult(autoMode, res->success,
+                            QString::fromStdString(res->message));
       });
 }

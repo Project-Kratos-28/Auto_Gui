@@ -15,7 +15,12 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(kratos_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(std_srvs REQUIRED)
+find_package(waypoint_interfaces REQUIRED)   # from auto_fastlio2 (GLIM waypoint_manager)
+find_package(ament_index_cpp REQUIRED)
+find_package(rviz_common REQUIRED)
+# RViz2 on Humble is built against Qt5, and Qt5/Qt6 can't share a process.
+find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GST REQUIRED
@@ -46,6 +51,12 @@ add_executable(kratos_gui
   src/vectorradarwidget.h
   src/videoplayerwidget.cpp
   src/videoplayerwidget.h
+  src/mapwidget.cpp
+  src/mapwidget.h
+  src/waypointpanel.cpp
+  src/waypointpanel.h
+  src/missionpanel.cpp
+  src/missionpanel.h
 )
 
 target_include_directories(kratos_gui PRIVATE
@@ -55,7 +66,7 @@ target_include_directories(kratos_gui PRIVATE
 )
 
 target_link_libraries(kratos_gui
-  Qt6::Widgets
+  Qt5::Widgets
   ${GST_LIBRARIES}
 )
 
@@ -63,10 +74,18 @@ ament_target_dependencies(kratos_gui
   rclcpp
   kratos_msgs
   sensor_msgs
+  std_srvs
+  waypoint_interfaces
+  ament_index_cpp
+  rviz_common
 )
 
 install(TARGETS kratos_gui
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY config
+  DESTINATION share/${PROJECT_NAME}
 )
 
 ament_package()
