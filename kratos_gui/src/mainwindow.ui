@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Kratos Command Center</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="mainLayout_v">
+    <property name="spacing">
+     <number>0</number>
+    </property>
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
+    
+    <item>
+     <widget class="QStackedWidget" name="stackedWidget">
+      
+      <!-- Page 1: Empty state -->
+      <widget class="QWidget" name="pageEmpty">
+       <layout class="QVBoxLayout" name="emptyLayout">
+        <item>
+         <spacer name="verticalSpacerTop">
+          <property name="orientation"><enum>Qt::Vertical</enum></property>
+         </spacer>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <item>
+           <spacer name="horizontalSpacerLeft">
+            <property name="orientation"><enum>Qt::Horizontal</enum></property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="bigAddBtn">
+            <property name="minimumSize">
+             <size>
+              <width>200</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>ADD +</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacerRight">
+            <property name="orientation"><enum>Qt::Horizontal</enum></property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <spacer name="verticalSpacerBottom">
+          <property name="orientation"><enum>Qt::Vertical</enum></property>
+         </spacer>
+        </item>
+       </layout>
+      </widget>
+
+      <!-- Page 2: Tab view -->
+      <widget class="QWidget" name="pageTabs">
+       <layout class="QVBoxLayout" name="tabsLayout">
+        <property name="spacing"><number>0</number></property>
+        <property name="leftMargin"><number>0</number></property>
+        <property name="topMargin"><number>0</number></property>
+        <property name="rightMargin"><number>0</number></property>
+        <property name="bottomMargin"><number>0</number></property>
+        <item>
+         <widget class="QTabWidget" name="tabWidget">
+          <property name="tabsClosable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+
+     </widget>
+    </item>
+
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

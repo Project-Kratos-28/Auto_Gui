@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>JoyNodeWidget</class>
+ <widget class="QWidget" name="JoyNodeWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QFrame" name="topBannerFrame">
+     <property name="styleSheet">
+      <string>QFrame { background-color: #1C1C1C; border: 1px solid #333333; } QLabel { color: #AAAAAA; font-weight: bold; font-size: 14px; border: none; }</string>
+     </property>
+     <layout class="QHBoxLayout" name="topBannerLayout">
+      <item>
+       <widget class="QLabel" name="joynodeStatusLabel">
+        <property name="text"><string>JOYNODE: NOMINAL</string></property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation"><enum>Qt::Horizontal</enum></property>
+        <property name="sizeType"><enum>QSizePolicy::Expanding</enum></property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="hardwareStatusLabel">
+        <property name="text"><string>HW: THRUSTMASTER NOMINAL</string></property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   
+   <item>
+    <layout class="QHBoxLayout" name="centerLayout">
+     <item>
+      <widget class="QGroupBox" name="thrustGroupBox">
+       <property name="title"><string>Z-AXIS THRUST</string></property>
+       <property name="styleSheet"><string>QGroupBox { color: #AAAAAA; font-weight: bold; font-size: 12px; border: 1px solid #333333; margin-top: 2ex; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }</string></property>
+       <layout class="QVBoxLayout" name="thrustLayout">
+        <item>
+         <widget class="ThrustPillarWidget" name="thrustPillar" native="true"/>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="radarGroupBox">
+       <property name="title"><string>X/Y STEERING VECTOR</string></property>
+       <property name="styleSheet"><string>QGroupBox { color: #AAAAAA; font-weight: bold; font-size: 12px; border: 1px solid #333333; margin-top: 2ex; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }</string></property>
+       <layout class="QHBoxLayout" name="radarLayout">
+        <item>
+         <widget class="VectorRadarWidget" name="vectorRadar" native="true"/>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <item>
+    <widget class="QFrame" name="bottomPanelFrame">
+     <property name="styleSheet">
+      <string>QFrame { background-color: #000000; border: 1px solid #333333; } QLabel { border: none; }</string>
+     </property>
+     <property name="minimumSize">
+      <size><width>0</width><height>200</height></size>
+     </property>
+     <layout class="QHBoxLayout" name="bottomLayout">
+      <item>
+       <widget class="QGroupBox" name="mappingBox">
+        <property name="title"><string>HARDWARE MAP</string></property>
+        <property name="styleSheet"><string>QGroupBox { color: #AAAAAA; font-weight: bold; border: 1px dashed #333333; margin-top: 1ex; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }</string></property>
+        <layout class="QGridLayout" name="gridLayout">
+         <!-- Dummy buttons to represent the interactive schematic -->
+         <item row="0" column="0"><widget class="QPushButton" name="btn1"><property name="text"><string>BTN 1</string></property><property name="styleSheet"><string>background-color: #1C1C1C; color: #555555; border: 1px solid #333333;</string></property></widget></item>
+         <item row="0" column="1"><widget class="QPushButton" name="btn2"><property name="text"><string>BTN 2</string></property><property name="styleSheet"><string>background-color: #1C1C1C; color: #555555; border: 1px solid #333333;</string></property></widget></item>
+        </layout>
+       </widget>
+      </item>
+      
+      <item>
+       <widget class="QGroupBox" name="dataBox">
+        <property name="title"><string>DATA FLOW</string></property>
+        <property name="styleSheet"><string>QGroupBox { color: #AAAAAA; font-weight: bold; border: 1px dashed #333333; margin-top: 1ex; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }</string></property>
+        <layout class="QHBoxLayout" name="dataLayout">
+         <item>
+          <widget class="QTextEdit" name="rawDataText">
+           <property name="readOnly"><bool>true</bool></property>
+           <property name="styleSheet"><string>background-color: #121212; color: #AAAAAA; font-family: monospace; border: none;</string></property>
+           <property name="html"><string>&lt;html&gt;&lt;body&gt;[ RAW /joy ]&lt;br&gt;axes: [0.0, 0.0, 0.0]&lt;br&gt;buttons: [0, 0, 0, 0]&lt;/body&gt;&lt;/html&gt;</string></property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QTextEdit" name="cmdDataText">
+           <property name="readOnly"><bool>true</bool></property>
+           <property name="styleSheet"><string>background-color: #121212; color: #FFFF55; font-family: monospace; border: none;</string></property>
+           <property name="html"><string>&lt;html&gt;&lt;body&gt;[ OUT cmd_vel ]&lt;br&gt;linear.x: 0.0&lt;br&gt;angular.z: 0.0&lt;/body&gt;&lt;/html&gt;</string></property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ThrustPillarWidget</class>
+   <extends>QWidget</extends>
+   <header>thrustpillarwidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>VectorRadarWidget</class>
+   <extends>QWidget</extends>
+   <header>vectorradarwidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,24 @@
+camera_stream_node:
+  ros__parameters:
+    stream.destination_host: 192.168.1.69
+
+    profiles.normal.bitrate: 8000
+    profiles.normal.width: 1280
+    profiles.normal.height: 720
+    profiles.normal.fps: 30
+    profiles.normal.format: MJPG
+    profiles.normal.encoder: h265 # Options: av1, h265
+
+    profiles.zed.bitrate: 12000
+    profiles.zed.width: 1920
+    profiles.zed.height: 1080
+    profiles.zed.fps: 30
+    profiles.zed.format: NV12
+    profiles.zed.encoder: av1  # Options: av1, h265
+
+    profiles.gimbal.bitrate: 8000
+    profiles.gimbal.width: 1920
+    profiles.gimbal.height: 1080
+    profiles.gimbal.fps: 60
+    profiles.gimbal.format: YUY2
+    profiles.gimbal.encoder: av1  # Options: av1, h265

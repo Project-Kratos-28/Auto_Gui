@@ -1,0 +1,1 @@
+kratos_msgs/CameraStream[] camera_streams
