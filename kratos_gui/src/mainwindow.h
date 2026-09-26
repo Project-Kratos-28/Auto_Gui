@@ -30,6 +30,7 @@ protected:
 private slots:
   void onAddCamClicked();
   void onAddJoyNodeClicked();
+  void onAddTuiClicked();
   void onAddSettingsClicked();
   void onOpenMapClicked();
   void onTabCloseRequested(int index);

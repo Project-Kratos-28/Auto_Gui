@@ -57,6 +57,12 @@ add_executable(kratos_gui
   src/waypointpanel.h
   src/missionpanel.cpp
   src/missionpanel.h
+  src/tuipanel.cpp
+  src/tuipanel.h
+  src/tuipanel.ui
+  src/tuipanel.cpp
+  src/tuipanel.h
+  src/tuipanel.ui
 )
 
 target_include_directories(kratos_gui PRIVATE
