@@ -16,6 +16,8 @@ RosWorker::~RosWorker() {
   listWaypointsClient_.reset();
   saveWaypointsClient_.reset();
   setAutoClient_.reset();
+  systemClients_.clear();
+  systemParams_.reset();
   stopStreamClient_.reset();
   node_.reset();
 }
@@ -54,6 +56,28 @@ void RosWorker::init() {
   // Served by kratos_nav's rover_bridge.py
   setAutoClient_ =
       node_->create_client<std_srvs::srv::SetBool>("/rover_bridge/set_auto");
+
+  // system_control on the Orin. Its services come and go with the node, so
+  // watch one of them and tell the TUI panel.
+  for (const char *a : {"start", "stop", "check", "status", "log"}) {
+    systemClients_[a] = node_->create_client<std_srvs::srv::Trigger>(
+        std::string("/kratos_system/") + a);
+  }
+  systemParams_ =
+      std::make_shared<rclcpp::AsyncParametersClient>(node_, "/kratos_system");
+  systemPollTimer_ = new QTimer(this);
+  connect(systemPollTimer_, &QTimer::timeout, this, [this]() {
+    const bool online = systemClients_["status"]->service_is_ready();
+    if (online != isSystemServiceOnline_) {
+      isSystemServiceOnline_ = online;
+      // requests to a system_control that went away are never answered
+      for (auto &kv : systemClients_) {
+        kv.second->prune_pending_requests();
+      }
+      emit systemServiceStatusChanged(online);
+    }
+  });
+  systemPollTimer_->start(1000);
 
   // Spin ROS node without blocking Qt event loop
   spinTimer_ = new QTimer(this);
@@ -154,6 +178,13 @@ void RosWorker::pollWaypoints() {
   const bool online = listWaypointsClient_->service_is_ready();
   if (online != isWaypointServiceOnline_) {
     isWaypointServiceOnline_ = online;
+    // Requests sent to a GLIM that went away are never answered; drop them
+    // so their callbacks do not pile up across restarts.
+    addWaypointClient_->prune_pending_requests();
+    getWaypointClient_->prune_pending_requests();
+    saveWaypointsClient_->prune_pending_requests();
+    listWaypointsClient_->prune_pending_requests();
+    listInFlight_ = false;
     emit waypointServiceStatusChanged(online);
   }
   // A request GLIM never answered (e.g. it restarted) would block polling
@@ -259,5 +290,59 @@ void RosWorker::callSetAutoMode(bool autoMode) {
         auto res = f.get();
         emit autoModeResult(autoMode, res->success,
                             QString::fromStdString(res->message));
+      });
+}
+
+// ─── system_control (Orin) ─────────────────────────────────────────
+
+rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr
+RosWorker::systemClient(const QString &action) {
+  auto it = systemClients_.find(action);
+  return it == systemClients_.end() ? nullptr : it->second;
+}
+
+void RosWorker::callSystem(QString action) {
+  auto client = systemClient(action);
+  if (!client) {
+    emit systemResult(action, false, "unknown action " + action);
+    return;
+  }
+  if (!client->service_is_ready()) {
+    emit systemResult(action, false,
+                      "/kratos_system/" + action +
+                          " not available: is system_control running on the "
+                          "Orin, with the same ROS_DOMAIN_ID?");
+    return;
+  }
+  client->async_send_request(
+      std::make_shared<std_srvs::srv::Trigger::Request>(),
+      [this, action](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture f) {
+        auto res = f.get();
+        emit systemResult(action, res->success,
+                          QString::fromStdString(res->message));
+      });
+}
+
+void RosWorker::callSystemStart(QString lidarZ, QString lidarIp, bool rviz) {
+  if (!systemParams_->service_is_ready()) {
+    emit systemResult("start", false,
+                      "system_control not reachable on the Orin (no "
+                      "/kratos_system parameter service)");
+    return;
+  }
+  systemParams_->set_parameters(
+      {rclcpp::Parameter("lidar_z", lidarZ.trimmed().toStdString()),
+       rclcpp::Parameter("lidar_ip", lidarIp.trimmed().toStdString()),
+       rclcpp::Parameter("rviz", rviz)},
+      [this](std::shared_future<std::vector<rcl_interfaces::msg::SetParametersResult>> f) {
+        for (const auto &r : f.get()) {
+          if (!r.successful) {
+            emit systemResult("start", false,
+                              "could not set start options: " +
+                                  QString::fromStdString(r.reason));
+            return;
+          }
+        }
+        callSystem("start");
       });
 }

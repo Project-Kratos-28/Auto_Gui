@@ -6,6 +6,8 @@
 #include <QString>
 #include <QTimer>
 
+#include <atomic>
+
 #include <gst/app/gstappsink.h>
 #include <gst/gst.h>
 
@@ -14,6 +16,10 @@ class VideoWorker : public QObject {
 public:
   explicit VideoWorker(QObject *parent = nullptr);
   ~VideoWorker() override;
+
+  /// Call (from the GUI thread) once a frame from newFrame() has been shown.
+  /// Frames are dropped while too many are still waiting for the GUI.
+  void frameConsumed() { --framesInFlight_; }
 
 signals:
   /// Emitted every time a decoded frame is ready.
@@ -44,6 +50,7 @@ private:
   int lastPort_ = 0;
   QString lastEncoder_;
   int retryCount_ = 0;
+  std::atomic<int> framesInFlight_{0};
   const int MAX_RETRIES = 5;
 };
 

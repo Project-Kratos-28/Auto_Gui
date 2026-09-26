@@ -1,20 +1,21 @@
 #include "tuipanel.h"
 
+#include "ros_worker.h"
+
 #include <QCheckBox>
-#include <QComboBox>
+#include <QDateTime>
 #include <QFormLayout>
 #include <QGroupBox>
-#include <QDir>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QProcess>
 #include <QPushButton>
 #include <QTextEdit>
+#include <QTimer>
 #include <QVBoxLayout>
 
-TuiPanel::TuiPanel(QWidget *parent)
-    : QWidget(parent) {
+TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
+    : QWidget(parent), rosWorker_(rosWorker) {
 
   setStyleSheet(R"(
     QWidget {
@@ -31,11 +32,21 @@ TuiPanel::TuiPanel(QWidget *parent)
       font-weight: bold;
     }
 
-    QLineEdit, QComboBox {
+    QLineEdit {
       background-color: #151515;
       color: #FFFFFF;
       border: 1px solid #333333;
       padding: 6px;
+    }
+
+    QCheckBox::indicator {
+      width: 14px; height: 14px;
+      border: 1px solid #666666;
+      background-color: #151515;
+    }
+
+    QCheckBox::indicator:checked {
+      background-color: #FFFF55;
     }
 
     QPushButton {
@@ -50,6 +61,11 @@ TuiPanel::TuiPanel(QWidget *parent)
       color: #FFFF55;
     }
 
+    QPushButton:disabled {
+      color: #555555;
+      border: 1px solid #2A2A2A;
+    }
+
     QTextEdit {
       background-color: #050505;
       color: #AAAAAA;
@@ -61,38 +77,35 @@ TuiPanel::TuiPanel(QWidget *parent)
   auto *mainLayout = new QVBoxLayout(this);
 
   auto *title = new QLabel("KRATOS SYSTEM CONTROL");
-  title->setStyleSheet(
-      "color: #FFFF55; font-size: 18px; font-weight: bold;");
+  title->setStyleSheet("color: #FFFF55; font-size: 18px; font-weight: bold;");
   mainLayout->addWidget(title);
 
-  // ───────── Configuration ─────────
+  // ───────── Link / state ─────────
 
-  auto *configBox = new QGroupBox("CONFIGURATION");
+  link_ = new QLabel();
+  state_ = new QLabel("state: -");
+  state_->setWordWrap(true);
+  state_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  mainLayout->addWidget(link_);
+  mainLayout->addWidget(state_);
+
+  // ───────── Start options (bringup.sh flags) ─────────
+
+  auto *configBox = new QGroupBox("START OPTIONS");
   auto *form = new QFormLayout(configBox);
 
-  mid360Ip_ = new QLineEdit("192.168.1.1");
-  orinLidarIp_ = new QLineEdit("192.168.1.2");
-  rosDomain_ = new QLineEdit("0");
-  laptopPeer_ = new QLineEdit("192.168.1.100");
-
-  depth_ = new QComboBox();
-  depth_->addItems({"zed", "none"});
-
+  mid360Ip_ = new QLineEdit();
+  mid360Ip_->setPlaceholderText("empty = search 192.168.1.100-199");
   lidarZ_ = new QLineEdit("0.60");
-
-  gui_ = new QComboBox();
-  gui_->addItems({"auto", "rviz", "none"});
-
-  cloudini_ = new QCheckBox("Enable Cloudini");
+  lidarZ_->setToolTip("Must match nav2_params.yaml and pcd2pgm_live.yaml, "
+                      "bringup refuses to start otherwise");
+  orinRviz_ = new QCheckBox("RViz on the Orin's own screen");
 
   form->addRow("MID-360 IP", mid360Ip_);
-  form->addRow("Orin LiDAR IP", orinLidarIp_);
-  form->addRow("ROS Domain", rosDomain_);
-  form->addRow("Laptop Peer", laptopPeer_);
-  form->addRow("Depth", depth_);
-  form->addRow("LiDAR Z", lidarZ_);
-  form->addRow("GUI", gui_);
-  form->addRow("", cloudini_);
+  form->addRow("LiDAR Z (m)", lidarZ_);
+  form->addRow("", orinRviz_);
+  const QString domain = qEnvironmentVariable("ROS_DOMAIN_ID", "0 (unset)");
+  form->addRow("ROS Domain", new QLabel(domain + "  (must match the Orin)"));
 
   mainLayout->addWidget(configBox);
 
@@ -101,133 +114,146 @@ TuiPanel::TuiPanel(QWidget *parent)
   auto *actionBox = new QGroupBox("ACTIONS");
   auto *actionLayout = new QVBoxLayout(actionBox);
 
+  startBtn_ = new QPushButton("START");
+  stopBtn_ = new QPushButton("STOP");
+  checkBtn_ = new QPushButton("CHECK");
+  statusBtn_ = new QPushButton("STATUS");
+  logBtn_ = new QPushButton("LOG");
+  auto *clearBtn = new QPushButton("CLEAR");
+
+  startBtn_->setToolTip("Start bringup.sh on the Orin");
+  stopBtn_->setToolTip("Save waypoints and stop everything. Press again to "
+                       "force-kill");
+  checkBtn_->setToolTip("bringup.sh --check: pre-flight checks, starts nothing");
+  statusBtn_->setToolTip("State and health of every node");
+  logBtn_->setToolTip("Last 60 lines of bringup.log");
+
   auto *row1 = new QHBoxLayout();
-  auto *startBtn = new QPushButton("START");
-  auto *stopBtn = new QPushButton("STOP");
-
-  row1->addWidget(startBtn);
-  row1->addWidget(stopBtn);
-
+  row1->addWidget(startBtn_);
+  row1->addWidget(stopBtn_);
   auto *row2 = new QHBoxLayout();
-  auto *diagnoseBtn = new QPushButton("DIAGNOSE");
-  auto *healthBtn = new QPushButton("HEALTH");
-
-  row2->addWidget(diagnoseBtn);
-  row2->addWidget(healthBtn);
-
+  row2->addWidget(checkBtn_);
+  row2->addWidget(statusBtn_);
   auto *row3 = new QHBoxLayout();
-  auto *rvizBtn = new QPushButton("RVIZ");
-  auto *logBtn = new QPushButton("LOG");
-
-  row3->addWidget(rvizBtn);
-  row3->addWidget(logBtn);
-
+  row3->addWidget(logBtn_);
+  row3->addWidget(clearBtn);
   actionLayout->addLayout(row1);
   actionLayout->addLayout(row2);
   actionLayout->addLayout(row3);
-
   mainLayout->addWidget(actionBox);
 
   // ───────── Output ─────────
 
   auto *outputBox = new QGroupBox("OUTPUT");
   auto *outputLayout = new QVBoxLayout(outputBox);
-
   output_ = new QTextEdit();
   output_->setReadOnly(true);
-
   outputLayout->addWidget(output_);
   mainLayout->addWidget(outputBox, 1);
 
-  connect(startBtn, &QPushButton::clicked,
-          this, &TuiPanel::startSystem);
+  connect(startBtn_, &QPushButton::clicked, this, [this]() {
+    busy_ = true;
+    updateButtons();
+    appendOutput("> START");
+    QMetaObject::invokeMethod(rosWorker_, "callSystemStart",
+                              Qt::QueuedConnection,
+                              Q_ARG(QString, lidarZ_->text()),
+                              Q_ARG(QString, mid360Ip_->text()),
+                              Q_ARG(bool, orinRviz_->isChecked()));
+  });
+  connect(stopBtn_, &QPushButton::clicked, this, [this]() { call("stop"); });
+  connect(checkBtn_, &QPushButton::clicked, this, [this]() {
+    busy_ = true;
+    updateButtons();
+    call("check");
+  });
+  connect(statusBtn_, &QPushButton::clicked, this, [this]() {
+    manualStatus_ = true;
+    call("status");
+  });
+  connect(logBtn_, &QPushButton::clicked, this, [this]() { call("log"); });
+  connect(clearBtn, &QPushButton::clicked, output_, &QTextEdit::clear);
 
-  connect(stopBtn, &QPushButton::clicked,
-          this, &TuiPanel::stopSystem);
+  connect(rosWorker_, &RosWorker::systemServiceStatusChanged, this,
+          &TuiPanel::onServiceStatusChanged);
+  connect(rosWorker_, &RosWorker::systemResult, this,
+          &TuiPanel::onSystemResult);
 
-  connect(diagnoseBtn, &QPushButton::clicked,
-          this, &TuiPanel::diagnoseSystem);
+  // Keep the state line fresh without anyone pressing STATUS
+  statusTimer_ = new QTimer(this);
+  connect(statusTimer_, &QTimer::timeout, this, [this]() {
+    if (online_) {
+      QMetaObject::invokeMethod(rosWorker_, "callSystem", Qt::QueuedConnection,
+                                Q_ARG(QString, "status"));
+    }
+  });
+  statusTimer_->start(3000);
 
-  connect(healthBtn, &QPushButton::clicked,
-          this, &TuiPanel::healthCheck);
+  onServiceStatusChanged(false);
+  // The link may already be up: the first poll after this tab opens says so
+  QMetaObject::invokeMethod(rosWorker_, "callSystem", Qt::QueuedConnection,
+                            Q_ARG(QString, "status"));
+}
 
-  connect(rvizBtn, &QPushButton::clicked,
-          this, &TuiPanel::openRviz);
+void TuiPanel::call(const QString &action) {
+  appendOutput("> " + action.toUpper());
+  QMetaObject::invokeMethod(rosWorker_, "callSystem", Qt::QueuedConnection,
+                            Q_ARG(QString, action));
+}
 
-  connect(logBtn, &QPushButton::clicked,
-          this, &TuiPanel::showLog);
+void TuiPanel::onServiceStatusChanged(bool online) {
+  online_ = online;
+  if (online) {
+    link_->setText("● Orin system_control: CONNECTED");
+    link_->setStyleSheet("color: #55FF55; font-weight: bold;");
+  } else {
+    link_->setText("● Orin system_control: NOT REACHABLE (is the Orin on, "
+                   "the service installed, same ROS_DOMAIN_ID?)");
+    link_->setStyleSheet("color: #FF5555; font-weight: bold;");
+    busy_ = false;
+  }
+  updateButtons();
+}
+
+void TuiPanel::onSystemResult(QString action, bool success, QString message) {
+  if (action == "status") {
+    // "running=... state=..." first, health lines after
+    const QString first = message.section('\n', 0, 0);
+    if (success) {
+      // a reply proves the link even if the 1 s poll has not flipped yet
+      if (!online_) {
+        onServiceStatusChanged(true);
+      }
+      state_->setText(first);
+      const bool ready = first.contains("state=ready");
+      const bool bad = first.contains("state=failed") ||
+                       first.contains("state=degraded");
+      state_->setStyleSheet(ready ? "color: #55FF55;"
+                                  : bad ? "color: #FF5555;" : "color: #FFFF55;");
+    }
+    if (!manualStatus_) {
+      return;
+    }
+    manualStatus_ = false;
+  }
+  if (action == "start" || action == "check") {
+    busy_ = false;
+    updateButtons();
+  }
+  appendOutput(QString("%1 %2:\n%3")
+                   .arg(action.toUpper(), success ? "OK" : "FAILED",
+                        message.trimmed()));
+}
+
+void TuiPanel::updateButtons() {
+  startBtn_->setEnabled(online_ && !busy_);
+  checkBtn_->setEnabled(online_ && !busy_);
+  stopBtn_->setEnabled(online_);
+  statusBtn_->setEnabled(online_);
+  logBtn_->setEnabled(online_);
 }
 
 void TuiPanel::appendOutput(const QString &text) {
-  output_->append(text);
-}
-
-void TuiPanel::startSystem() {
-  appendOutput("Starting Kratos stack...");
-
-  auto *process = new QProcess(this);
-
-  QString program = QDir::homePath() + "/kratos_glim/start_tui.sh";
-
-  process->setProgram("bash");
-  process->setArguments({program});
-
-  connect(process, &QProcess::readyReadStandardOutput,
-          this, [this, process]() {
-            appendOutput(
-                QString::fromLocal8Bit(process->readAllStandardOutput()));
-          });
-
-  connect(process, &QProcess::readyReadStandardError,
-          this, [this, process]() {
-            appendOutput(
-                QString::fromLocal8Bit(process->readAllStandardError()));
-          });
-
-  connect(process,
-          QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-          this,
-          [this, process](int code, QProcess::ExitStatus) {
-            appendOutput(QString("Process exited: %1").arg(code));
-            process->deleteLater();
-          });
-
-  process->start();
-}
-
-void TuiPanel::stopSystem() {
-  appendOutput("STOP requested.");
-  QProcess::execute("bash", {
-      "-c",
-      "cd ~/kratos_glim && ./start.sh --stop"
-  });
-}
-
-void TuiPanel::diagnoseSystem() {
-  appendOutput("Running diagnostics...");
-  QProcess::startDetached(
-      "bash",
-      {"-c", "cd ~/kratos_glim && ./start_tui.sh"});
-}
-
-void TuiPanel::healthCheck() {
-  appendOutput("Running health check...");
-  QProcess::execute("bash", {
-      "-c",
-      "cd ~/kratos_glim && ./start_tui.sh"
-  });
-}
-
-void TuiPanel::openRviz() {
-  appendOutput("Opening RViz...");
-  QProcess::startDetached(
-      "bash",
-      {"-c", "cd ~/kratos_glim && ./start_tui.sh"});
-}
-
-void TuiPanel::showLog() {
-  appendOutput("Opening logs...");
-  QProcess::startDetached(
-      "bash",
-      {"-c", "cd ~/kratos_glim && ./start_tui.sh"});
+  output_->append(QDateTime::currentDateTime().toString("HH:mm:ss ") +
+                  text.trimmed());
 }

@@ -4,37 +4,47 @@
 #include <QWidget>
 
 class QLineEdit;
-class QComboBox;
 class QCheckBox;
+class QLabel;
 class QPushButton;
 class QTextEdit;
+class QTimer;
+class RosWorker;
 
+// Starts/stops bringup.sh on the Orin through the system_control node's
+// /kratos_system/* services, and shows its state, checks and log.
 class TuiPanel : public QWidget {
   Q_OBJECT
 
 public:
-  explicit TuiPanel(QWidget *parent = nullptr);
+  explicit TuiPanel(RosWorker *rosWorker, QWidget *parent = nullptr);
 
 private slots:
-  void startSystem();
-  void stopSystem();
-  void diagnoseSystem();
-  void healthCheck();
-  void openRviz();
-  void showLog();
+  void onServiceStatusChanged(bool online);
+  void onSystemResult(QString action, bool success, QString message);
 
 private:
-  QLineEdit *mid360Ip_;
-  QLineEdit *orinLidarIp_;
-  QLineEdit *rosDomain_;
-  QLineEdit *laptopPeer_;
-  QComboBox *depth_;
-  QLineEdit *lidarZ_;
-  QComboBox *gui_;
-  QCheckBox *cloudini_;
-  QTextEdit *output_;
-
+  void call(const QString &action);
   void appendOutput(const QString &text);
+  void updateButtons();
+
+  RosWorker *rosWorker_;
+  bool online_ = false;
+  bool busy_ = false;          // start or check waiting for its reply
+  bool manualStatus_ = false;  // STATUS pressed: also print it in the log
+
+  QLineEdit *mid360Ip_;
+  QLineEdit *lidarZ_;
+  QCheckBox *orinRviz_;
+  QLabel *link_;
+  QLabel *state_;
+  QPushButton *startBtn_;
+  QPushButton *stopBtn_;
+  QPushButton *checkBtn_;
+  QPushButton *statusBtn_;
+  QPushButton *logBtn_;
+  QTextEdit *output_;
+  QTimer *statusTimer_;
 };
 
 #endif
