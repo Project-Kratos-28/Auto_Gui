@@ -59,7 +59,8 @@ void RosWorker::init() {
 
   // system_control on the Orin. Its services come and go with the node, so
   // watch one of them and tell the TUI panel.
-  for (const char *a : {"start", "stop", "check", "status", "log"}) {
+  for (const char *a : {"start", "stop", "diagnose", "health", "log", "status",
+                        "get_config", "rviz"}) {
     systemClients_[a] = node_->create_client<std_srvs::srv::Trigger>(
         std::string("/kratos_system/") + a);
   }
@@ -323,26 +324,30 @@ void RosWorker::callSystem(QString action) {
       });
 }
 
-void RosWorker::callSystemStart(QString lidarZ, QString lidarIp, bool rviz) {
+void RosWorker::callSystemWith(QString action, QStringList settings) {
   if (!systemParams_->service_is_ready()) {
-    emit systemResult("start", false,
+    emit systemResult(action, false,
                       "system_control not reachable on the Orin (no "
                       "/kratos_system parameter service)");
     return;
   }
+  // "key=value" pairs, all sent as strings: the node validates them
+  std::vector<rclcpp::Parameter> params;
+  for (const QString &kv : settings) {
+    params.emplace_back(kv.section('=', 0, 0).toStdString(),
+                        kv.section('=', 1).trimmed().toStdString());
+  }
   systemParams_->set_parameters(
-      {rclcpp::Parameter("lidar_z", lidarZ.trimmed().toStdString()),
-       rclcpp::Parameter("lidar_ip", lidarIp.trimmed().toStdString()),
-       rclcpp::Parameter("rviz", rviz)},
-      [this](std::shared_future<std::vector<rcl_interfaces::msg::SetParametersResult>> f) {
+      params,
+      [this, action](std::shared_future<std::vector<rcl_interfaces::msg::SetParametersResult>> f) {
         for (const auto &r : f.get()) {
           if (!r.successful) {
-            emit systemResult("start", false,
-                              "could not set start options: " +
+            emit systemResult(action, false,
+                              "setting rejected by the Orin: " +
                                   QString::fromStdString(r.reason));
             return;
           }
         }
-        callSystem("start");
+        callSystem(action);
       });
 }

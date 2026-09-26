@@ -3,6 +3,7 @@
 #include "ros_worker.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDateTime>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -10,6 +11,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QTextEdit>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -32,7 +34,7 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
       font-weight: bold;
     }
 
-    QLineEdit {
+    QLineEdit, QComboBox {
       background-color: #151515;
       color: #FFFFFF;
       border: 1px solid #333333;
@@ -40,7 +42,8 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
     }
 
     QCheckBox::indicator {
-      width: 14px; height: 14px;
+      width: 14px;
+      height: 14px;
       border: 1px solid #666666;
       background-color: #151515;
     }
@@ -83,29 +86,48 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
   // ───────── Link / state ─────────
 
   link_ = new QLabel();
-  state_ = new QLabel("state: -");
-  state_->setWordWrap(true);
+  link_->setWordWrap(true);
+  state_ = new QLabel("stack: -");
   state_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   mainLayout->addWidget(link_);
   mainLayout->addWidget(state_);
 
-  // ───────── Start options (bringup.sh flags) ─────────
+  // ───────── Settings (what start_tui.sh edits) ─────────
 
-  auto *configBox = new QGroupBox("START OPTIONS");
+  auto *configBox = new QGroupBox("SETTINGS (applied on START)");
   auto *form = new QFormLayout(configBox);
 
   mid360Ip_ = new QLineEdit();
-  mid360Ip_->setPlaceholderText("empty = search 192.168.1.100-199");
-  lidarZ_ = new QLineEdit("0.60");
-  lidarZ_->setToolTip("Must match nav2_params.yaml and pcd2pgm_live.yaml, "
-                      "bringup refuses to start otherwise");
-  orinRviz_ = new QCheckBox("RViz on the Orin's own screen");
+  mid360Ip_->setToolTip("The MID-360's own IP: 192.168.1.1XX, XX = last 2 "
+                        "digits of its serial");
+  orinLidarIp_ = new QLineEdit();
+  orinLidarIp_->setToolTip("The Orin's IP on the LiDAR port, where the "
+                           "MID-360 sends its data");
+  laptopPeer_ = new QLineEdit();
+  laptopPeer_->setPlaceholderText("empty = multicast discovery");
+  laptopPeer_->setToolTip("This laptop's IP, if the radio link drops "
+                          "multicast and the Orin's topics do not show up");
+  depth_ = new QComboBox();
+  depth_->addItems({"zed", "ess", "none"});
+  depth_->setToolTip("zed: ZED depth, ess: stereo DNN depth, none: no "
+                     "camera (LiDAR only)");
+  lidarZ_ = new QLineEdit();
+  lidarZ_->setToolTip("LiDAR height above the ground (m). Nav2 and "
+                      "pcd2pgm use their own copy: change them too");
+  gui_ = new QComboBox();
+  gui_->addItems({"auto", "true", "false"});
+  gui_->setToolTip("RViz on the Orin's own screen when START runs");
+  cloudini_ = new QCheckBox("compress the clouds for this laptop");
+  domain_ = new QLabel("-");
 
   form->addRow("MID-360 IP", mid360Ip_);
+  form->addRow("Orin LiDAR IP", orinLidarIp_);
+  form->addRow("Laptop peer", laptopPeer_);
+  form->addRow("Depth", depth_);
   form->addRow("LiDAR Z (m)", lidarZ_);
-  form->addRow("", orinRviz_);
-  const QString domain = qEnvironmentVariable("ROS_DOMAIN_ID", "0 (unset)");
-  form->addRow("ROS Domain", new QLabel(domain + "  (must match the Orin)"));
+  form->addRow("Orin RViz", gui_);
+  form->addRow("Cloudini", cloudini_);
+  form->addRow("ROS Domain", domain_);
 
   mainLayout->addWidget(configBox);
 
@@ -116,30 +138,43 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
 
   startBtn_ = new QPushButton("START");
   stopBtn_ = new QPushButton("STOP");
-  checkBtn_ = new QPushButton("CHECK");
+  diagnoseBtn_ = new QPushButton("DIAGNOSE");
+  healthBtn_ = new QPushButton("HEALTH");
+  rvizBtn_ = new QPushButton("RVIZ ON ORIN");
   statusBtn_ = new QPushButton("STATUS");
   logBtn_ = new QPushButton("LOG");
+  reloadBtn_ = new QPushButton("RELOAD SETTINGS");
   auto *clearBtn = new QPushButton("CLEAR");
+  logFilter_ = new QLineEdit();
+  logFilter_->setPlaceholderText("log filter, e.g. ERROR|WARN or glim");
 
-  startBtn_->setToolTip("Start bringup.sh on the Orin");
-  stopBtn_->setToolTip("Save waypoints and stop everything. Press again to "
-                       "force-kill");
-  checkBtn_->setToolTip("bringup.sh --check: pre-flight checks, starts nothing");
-  statusBtn_->setToolTip("State and health of every node");
-  logBtn_->setToolTip("Last 60 lines of bringup.log");
+  startBtn_->setToolTip("Save the settings on the Orin, then start.sh");
+  stopBtn_->setToolTip("stop.sh: GLIM saves its map to ~/kratos_glim/maps");
+  diagnoseBtn_->setToolTip("Docker, build, LiDAR port, MID-360, ZED, "
+                           "network, lidar_z. Changes nothing");
+  healthBtn_->setToolTip("Is every key topic publishing? Plus the last "
+                         "errors in the log");
+  logBtn_->setToolTip("Last 80 lines of the bring-up log (filtered)");
+  reloadBtn_->setToolTip("Refill the fields from the Orin's files");
 
   auto *row1 = new QHBoxLayout();
   row1->addWidget(startBtn_);
   row1->addWidget(stopBtn_);
   auto *row2 = new QHBoxLayout();
-  row2->addWidget(checkBtn_);
-  row2->addWidget(statusBtn_);
+  row2->addWidget(diagnoseBtn_);
+  row2->addWidget(healthBtn_);
+  row2->addWidget(rvizBtn_);
   auto *row3 = new QHBoxLayout();
   row3->addWidget(logBtn_);
-  row3->addWidget(clearBtn);
+  row3->addWidget(logFilter_, 1);
+  auto *row4 = new QHBoxLayout();
+  row4->addWidget(statusBtn_);
+  row4->addWidget(reloadBtn_);
+  row4->addWidget(clearBtn);
   actionLayout->addLayout(row1);
   actionLayout->addLayout(row2);
   actionLayout->addLayout(row3);
+  actionLayout->addLayout(row4);
   mainLayout->addWidget(actionBox);
 
   // ───────── Output ─────────
@@ -154,24 +189,33 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
   connect(startBtn_, &QPushButton::clicked, this, [this]() {
     busy_ = true;
     updateButtons();
-    appendOutput("> START");
-    QMetaObject::invokeMethod(rosWorker_, "callSystemStart",
-                              Qt::QueuedConnection,
-                              Q_ARG(QString, lidarZ_->text()),
-                              Q_ARG(QString, mid360Ip_->text()),
-                              Q_ARG(bool, orinRviz_->isChecked()));
+    appendOutput("> START (the first start after a rebuild takes minutes)");
+    QMetaObject::invokeMethod(rosWorker_, "callSystemWith",
+                              Qt::QueuedConnection, Q_ARG(QString, "start"),
+                              Q_ARG(QStringList, settings()));
   });
   connect(stopBtn_, &QPushButton::clicked, this, [this]() { call("stop"); });
-  connect(checkBtn_, &QPushButton::clicked, this, [this]() {
+  connect(diagnoseBtn_, &QPushButton::clicked, this, [this]() {
     busy_ = true;
     updateButtons();
-    call("check");
+    call("diagnose");
   });
+  connect(healthBtn_, &QPushButton::clicked, this, [this]() {
+    busy_ = true;
+    updateButtons();
+    call("health");
+  });
+  connect(rvizBtn_, &QPushButton::clicked, this, [this]() { call("rviz"); });
   connect(statusBtn_, &QPushButton::clicked, this, [this]() {
     manualStatus_ = true;
     call("status");
   });
-  connect(logBtn_, &QPushButton::clicked, this, [this]() { call("log"); });
+  connect(logBtn_, &QPushButton::clicked, this, [this]() {
+    callWith("log", {"log_filter=" + logFilter_->text()});
+  });
+  connect(logFilter_, &QLineEdit::returnPressed, logBtn_, &QPushButton::click);
+  connect(reloadBtn_, &QPushButton::clicked, this,
+          [this]() { call("get_config"); });
   connect(clearBtn, &QPushButton::clicked, output_, &QTextEdit::clear);
 
   connect(rosWorker_, &RosWorker::systemServiceStatusChanged, this,
@@ -179,20 +223,30 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
   connect(rosWorker_, &RosWorker::systemResult, this,
           &TuiPanel::onSystemResult);
 
-  // Keep the state line fresh without anyone pressing STATUS
+  // Keep the state line fresh without anyone pressing STATUS. Also runs while
+  // offline: the first answer flips the link to CONNECTED
   statusTimer_ = new QTimer(this);
   connect(statusTimer_, &QTimer::timeout, this, [this]() {
-    if (online_) {
-      QMetaObject::invokeMethod(rosWorker_, "callSystem", Qt::QueuedConnection,
-                                Q_ARG(QString, "status"));
-    }
+    QMetaObject::invokeMethod(rosWorker_, "callSystem", Qt::QueuedConnection,
+                              Q_ARG(QString, "status"));
   });
   statusTimer_->start(3000);
 
   onServiceStatusChanged(false);
-  // The link may already be up: the first poll after this tab opens says so
+  // The worker only signals link changes: if the link was already up before
+  // this tab opened, the reply to this first status call is what says so
   QMetaObject::invokeMethod(rosWorker_, "callSystem", Qt::QueuedConnection,
                             Q_ARG(QString, "status"));
+}
+
+QStringList TuiPanel::settings() const {
+  return {"mid360_ip=" + mid360Ip_->text(),
+          "orin_lidar_ip=" + orinLidarIp_->text(),
+          "laptop_peer=" + laptopPeer_->text(),
+          "depth=" + depth_->currentText(),
+          "lidar_z=" + lidarZ_->text(),
+          "gui=" + gui_->currentText(),
+          QString("cloudini=") + (cloudini_->isChecked() ? "true" : "false")};
 }
 
 void TuiPanel::call(const QString &action) {
@@ -201,14 +255,44 @@ void TuiPanel::call(const QString &action) {
                             Q_ARG(QString, action));
 }
 
+void TuiPanel::callWith(const QString &action, const QStringList &settings) {
+  appendOutput("> " + action.toUpper());
+  QMetaObject::invokeMethod(rosWorker_, "callSystemWith", Qt::QueuedConnection,
+                            Q_ARG(QString, action), Q_ARG(QStringList, settings));
+}
+
+void TuiPanel::applyConfig(const QString &config) {
+  for (const QString &line : config.split('\n')) {
+    const QString k = line.section('=', 0, 0), v = line.section('=', 1);
+    if (k == "mid360_ip") mid360Ip_->setText(v);
+    else if (k == "orin_lidar_ip") orinLidarIp_->setText(v);
+    else if (k == "laptop_peer") laptopPeer_->setText(v);
+    else if (k == "depth") depth_->setCurrentText(v);
+    else if (k == "lidar_z") lidarZ_->setText(v);
+    else if (k == "gui") gui_->setCurrentText(v);
+    else if (k == "cloudini") cloudini_->setChecked(v == "true");
+    else if (k == "ros_domain") {
+      const QString mine = qEnvironmentVariable("ROS_DOMAIN_ID", "0");
+      domain_->setText(v + (v == mine ? "  (same as this laptop)"
+                                      : "  (THIS LAPTOP USES " + mine + ")"));
+    }
+  }
+  configLoaded_ = true;
+}
+
 void TuiPanel::onServiceStatusChanged(bool online) {
   online_ = online;
   if (online) {
     link_->setText("● Orin system_control: CONNECTED");
     link_->setStyleSheet("color: #55FF55; font-weight: bold;");
+    if (!configLoaded_) {
+      QMetaObject::invokeMethod(rosWorker_, "callSystem", Qt::QueuedConnection,
+                                Q_ARG(QString, "get_config"));
+    }
   } else {
-    link_->setText("● Orin system_control: NOT REACHABLE (is the Orin on, "
-                   "the service installed, same ROS_DOMAIN_ID?)");
+    link_->setText("● Orin system_control: NOT REACHABLE (Orin on? same "
+                   "network and ROS_DOMAIN_ID? systemctl --user status "
+                   "kratos-system-control on the Orin)");
     link_->setStyleSheet("color: #FF5555; font-weight: bold;");
     busy_ = false;
   }
@@ -217,43 +301,71 @@ void TuiPanel::onServiceStatusChanged(bool online) {
 
 void TuiPanel::onSystemResult(QString action, bool success, QString message) {
   if (action == "status") {
-    // "running=... state=..." first, health lines after
-    const QString first = message.section('\n', 0, 0);
     if (success) {
       // a reply proves the link even if the 1 s poll has not flipped yet
       if (!online_) {
         onServiceStatusChanged(true);
       }
-      state_->setText(first);
-      const bool ready = first.contains("state=ready");
-      const bool bad = first.contains("state=failed") ||
-                       first.contains("state=degraded");
-      state_->setStyleSheet(ready ? "color: #55FF55;"
-                                  : bad ? "color: #FF5555;" : "color: #FFFF55;");
+      state_->setText(message);
+      state_->setStyleSheet(message.contains("stack=running")
+                                ? "color: #55FF55;" : "color: #FFFF55;");
     }
     if (!manualStatus_) {
       return;
     }
     manualStatus_ = false;
   }
-  if (action == "start" || action == "check") {
+  if (action == "get_config" && success) {
+    const bool quiet = !configLoaded_;
+    applyConfig(message);
+    if (quiet) {
+      return;  // the automatic load on connect
+    }
+  }
+  if (action == "start" || action == "diagnose" || action == "health") {
     busy_ = false;
     updateButtons();
   }
-  appendOutput(QString("%1 %2:\n%3")
-                   .arg(action.toUpper(), success ? "OK" : "FAILED",
-                        message.trimmed()));
+  QString body = message.trimmed().toHtmlEscaped();
+  body.replace(QRegularExpression("^(\\[FAIL\\].*)$",
+                                  QRegularExpression::MultilineOption),
+               "<span style='color:#FF5555'>\\1</span>");
+  body.replace(QRegularExpression("^(\\[WARN\\].*)$",
+                                  QRegularExpression::MultilineOption),
+               "<span style='color:#FFFF55'>\\1</span>");
+  body.replace(QRegularExpression("^(\\[OK  \\].*)$",
+                                  QRegularExpression::MultilineOption),
+               "<span style='color:#55FF55'>\\1</span>");
+  appendOutput(QString("%1 %2:").arg(action.toUpper(),
+                                     success ? "OK" : "FAILED"),
+               success ? "#55FF55" : "#FF5555");
+  output_->append("<pre style='margin:0'>" + body + "</pre>");
+
+  // GLIM needs ~10 s still for its IMU init; then check that it all came up
+  if (action == "start" && success) {
+    QTimer::singleShot(15000, this, [this]() {
+      if (online_ && !busy_) {
+        busy_ = true;
+        updateButtons();
+        call("health");
+      }
+    });
+  }
 }
 
 void TuiPanel::updateButtons() {
-  startBtn_->setEnabled(online_ && !busy_);
-  checkBtn_->setEnabled(online_ && !busy_);
-  stopBtn_->setEnabled(online_);
-  statusBtn_->setEnabled(online_);
-  logBtn_->setEnabled(online_);
+  for (QPushButton *b : {startBtn_, diagnoseBtn_, healthBtn_}) {
+    b->setEnabled(online_ && !busy_);
+  }
+  for (QPushButton *b : {stopBtn_, statusBtn_, logBtn_, rvizBtn_, reloadBtn_}) {
+    b->setEnabled(online_);
+  }
 }
 
-void TuiPanel::appendOutput(const QString &text) {
-  output_->append(QDateTime::currentDateTime().toString("HH:mm:ss ") +
-                  text.trimmed());
+void TuiPanel::appendOutput(const QString &text, const QString &color) {
+  const QString line = QDateTime::currentDateTime().toString("HH:mm:ss ") +
+                       text.trimmed().toHtmlEscaped();
+  output_->append(color.isEmpty()
+                      ? line
+                      : "<span style='color:" + color + "'>" + line + "</span>");
 }

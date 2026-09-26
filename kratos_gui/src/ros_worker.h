@@ -60,7 +60,7 @@ signals:
   // rover_bridge
   void autoModeResult(bool requested, bool success, QString message);
 
-  // system_control on the Orin (starts/stops bringup.sh)
+  // system_control on the Orin (runs ~/kratos_glim start.sh / stop.sh)
   void systemServiceStatusChanged(bool online);
   void systemResult(QString action, bool success, QString message);
 
@@ -74,10 +74,10 @@ public slots:
   void callSaveWaypoints(QString path);
   void callSetAutoMode(bool autoMode);
 
-  // action: start | stop | check | status | log
+  // action: start | stop | diagnose | health | log | status | get_config | rviz
   void callSystem(QString action);
-  // Sets lidar_z / lidar_ip / rviz on system_control, then calls start
-  void callSystemStart(QString lidarZ, QString lidarIp, bool rviz);
+  // Sets "key=value" parameters on system_control, then calls action
+  void callSystemWith(QString action, QStringList settings);
 
 private:
   void
