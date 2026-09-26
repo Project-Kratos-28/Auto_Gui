@@ -11,6 +11,9 @@
 
 #include "camerawidget.h"
 #include "joynodewidget.h"
+#include "mapwidget.h"
+#include "missionpanel.h"
+#include "waypointpanel.h"
 
 #include <QApplication>
 #include <QShortcut>
@@ -19,6 +22,7 @@
 #include <QListWidget>
 #include <QVBoxLayout>
 #include <QKeyEvent>
+#include <QMessageBox>
 #include <QTimer>
 
 static bool _registered = []() {
@@ -63,10 +67,11 @@ public:
     listWidget->addItem("Add Cam View (C)");
     listWidget->addItem("Add Joynode Panel (J)");
     listWidget->addItem("Add Settings Panel (S)");
+    listWidget->addItem("Open Map View (M)");
     listWidget->setCurrentRow(0); // Select first by default
     layout->addWidget(listWidget);
 
-    setFixedSize(250, 130);
+    setFixedSize(250, 165);
   }
 
   int getSelectedIndex() const { return listWidget->currentRow(); }
@@ -86,6 +91,9 @@ protected:
     } else if (event->key() == Qt::Key_S) {
       listWidget->setCurrentRow(2);
       accept();
+    } else if (event->key() == Qt::Key_M) {
+      listWidget->setCurrentRow(3);
+      accept();
     } else {
       QDialog::keyPressEvent(event);
     }
@@ -96,7 +104,7 @@ private:
 };
 // ───────────────────────────────────────────────────────────────────
 
-MainWindow::MainWindow(QWidget *parent)
+MainWindow::MainWindow(QApplication *app, QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
   ui->setupUi(this);
 
@@ -200,6 +208,8 @@ MainWindow::MainWindow(QWidget *parent)
               &MainWindow::onAddJoyNodeClicked);
       connect(addMenu.addAction("Add Settings Panel"), &QAction::triggered, this,
               &MainWindow::onAddSettingsClicked);
+      connect(addMenu.addAction("Open Map View"), &QAction::triggered, this,
+              &MainWindow::onOpenMapClicked);
       addMenu.exec(QCursor::pos());
     }
   });
@@ -217,8 +227,29 @@ MainWindow::MainWindow(QWidget *parent)
 
   rosThread_.start();
 
+  // MAP tab (embedded RViz + waypoints + mission). Created once and never
+  // destroyed: closing the tab only hides it, so RViz and a running mission
+  // survive, and "Open Map View" brings the same one back.
+  mapWidget_ = new MapWidget(app, rosWorker_, this);
+  onOpenMapClicked();
+
   // ── Application Hotkeys ──────────────────────────────────────────
   
+  // Log waypoint at the rover's current pose: Ctrl + L (from any tab)
+  QShortcut *logWaypointShortcut = new QShortcut(QKeySequence("Ctrl+L"), this);
+  connect(logWaypointShortcut, &QShortcut::activated, mapWidget_->waypointPanel(),
+          &WaypointPanel::logWaypoint);
+
+  // Toggle RViz 2D/3D view: Ctrl + D
+  QShortcut *viewShortcut = new QShortcut(QKeySequence("Ctrl+D"), this);
+  connect(viewShortcut, &QShortcut::activated, mapWidget_,
+          &MapWidget::toggle2D3D);
+
+  // Cancel mission: Esc (from any tab; does nothing when no mission runs)
+  QShortcut *cancelShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+  connect(cancelShortcut, &QShortcut::activated, mapWidget_->missionPanel(),
+          &MissionPanel::cancelMission);
+
   // Close current tab: Ctrl + W
   QShortcut *closeTabShortcut = new QShortcut(QKeySequence("Ctrl+W"), this);
   connect(closeTabShortcut, &QShortcut::activated, this, [this]() {
@@ -252,9 +283,8 @@ MainWindow::MainWindow(QWidget *parent)
 
   // Quit Application: Ctrl + Shift + Q
   QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Shift+Q"), this);
-  connect(quitShortcut, &QShortcut::activated, this, []() {
-    QApplication::quit();
-  });
+  // close(), not QApplication::quit(): closeEvent must stop a running mission
+  connect(quitShortcut, &QShortcut::activated, this, &QWidget::close);
 
   // Add Tab Menu: Ctrl + T
   QShortcut *addTabShortcut = new QShortcut(QKeySequence("Ctrl+T"), this);
@@ -269,6 +299,8 @@ MainWindow::MainWindow(QWidget *parent)
         onAddJoyNodeClicked();
       } else if (dialog.getSelectedIndex() == 2) {
         onAddSettingsClicked();
+      } else if (dialog.getSelectedIndex() == 3) {
+        onOpenMapClicked();
       }
     }
   });
@@ -329,6 +361,9 @@ MainWindow::MainWindow(QWidget *parent)
     addShortcut("Ctrl + T", "Add New Tab");
     addShortcut("Ctrl + W", "Close Current Tab");
     addShortcut("Ctrl + Shift + Q", "Quit Application");
+    addShortcut("Ctrl + L", "Log Waypoint at Current Pose");
+    addShortcut("Ctrl + D", "Toggle Map View 2D / 3D");
+    addShortcut("Esc", "Cancel Running Mission");
     addShortcut("Ctrl + 1..9", "Toggle Camera 1..9 (Camera Tab Only)");
     addShortcut("Ctrl + A", "Toggle All Cameras (Camera Tab Only)");
     addShortcut("Ctrl + R", "Focus Layout Dropdown (Camera Tab Only)");
@@ -352,6 +387,23 @@ MainWindow::MainWindow(QWidget *parent)
   });
 }
 
+void MainWindow::closeEvent(QCloseEvent *event) {
+  MissionPanel *mission = mapWidget_->missionPanel();
+  if (mission->isRunning()) {
+    const auto answer = QMessageBox::question(
+        this, "Mission running",
+        "A mission is running. Cancel it and quit?\n\nThe GUI waits for the "
+        "mission to cancel its Nav2 goal before closing.",
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+      event->ignore();
+      return;
+    }
+    mission->stopBlocking();
+  }
+  event->accept();
+}
+
 MainWindow::~MainWindow() {
 
   rosThread_.quit();
@@ -366,6 +418,8 @@ void MainWindow::setupAddMenu(QPushButton *btn) {
           &MainWindow::onAddCamClicked);
   connect(addMenu->addAction("Add Joynode Panel"), &QAction::triggered, this,
           &MainWindow::onAddJoyNodeClicked);
+  connect(addMenu->addAction("Open Map View"), &QAction::triggered, this,
+          &MainWindow::onOpenMapClicked);
   btn->setMenu(addMenu);
 }
 
@@ -514,12 +568,39 @@ void MainWindow::onAddSettingsClicked() {
   ui->tabWidget->setCurrentIndex(index);
 }
 
+void MainWindow::onOpenMapClicked() {
+  ui->stackedWidget->setCurrentIndex(1); // Switch to tabs view
+  int index = ui->tabWidget->indexOf(mapWidget_);
+  if (index == -1) {
+    index = ui->tabWidget->insertTab(0, mapWidget_, "MAP");
+
+    QTabBar *tabBar = ui->tabWidget->findChild<QTabBar *>();
+    if (tabBar) {
+      QPushButton *closeBtn = new QPushButton("✕", ui->tabWidget);
+      closeBtn->setFixedSize(16, 16);
+      closeBtn->setStyleSheet(
+          "QPushButton { color: #AAAAAA; border: none; background: transparent; "
+          "font-size: 12px; font-weight: bold; } QPushButton:hover { color: "
+          "#FFFF55; }");
+      tabBar->setTabButton(index, QTabBar::RightSide, closeBtn);
+      connect(closeBtn, &QPushButton::clicked, this, [this]() {
+        int idx = ui->tabWidget->indexOf(mapWidget_);
+        if (idx != -1)
+          QTimer::singleShot(0, this, [this, idx]() { onTabCloseRequested(idx); });
+      });
+    }
+  }
+  ui->tabWidget->setCurrentIndex(index);
+}
+
 void MainWindow::onTabCloseRequested(int index) {
   if (index == ui->tabWidget->count() - 1)
     return; // Prevent closing the dummy tab
   QWidget *widget = ui->tabWidget->widget(index);
   ui->tabWidget->removeTab(index);
-  widget->deleteLater();
+  if (widget != mapWidget_) { // the map is only hidden, see onOpenMapClicked
+    widget->deleteLater();
+  }
 
   if (ui->tabWidget->count() <= 1) {       // Only the dummy left
     ui->stackedWidget->setCurrentIndex(0); // Revert to empty state

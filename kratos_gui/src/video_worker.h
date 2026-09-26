@@ -23,8 +23,10 @@ signals:
   void pipelineError(QString errorMsg);
 
 public slots:
-  /// Build and start a GStreamer TCP client pipeline for AV1.
-  void startPipeline(QString host, int port);
+  /// Build and start a receive pipeline matching the rover's encoder:
+  /// "h265" = RTP over UDP on `port`, "av1" = Matroska from the rover's
+  /// tcpserversink at `host`:`port`.
+  void startPipeline(QString host, int port, QString encoder);
 
   /// Stop and tear down the current pipeline.
   void stopPipeline();
@@ -40,6 +42,7 @@ private:
   QTimer *retryTimer_ = nullptr;
   QString lastHost_;
   int lastPort_ = 0;
+  QString lastEncoder_;
   int retryCount_ = 0;
   const int MAX_RETRIES = 5;
 };

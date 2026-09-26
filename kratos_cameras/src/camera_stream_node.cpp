@@ -137,6 +137,7 @@ void CameraStreamNode::publish_all_cameras()
         stream.fps = config.fps;
         stream.port = config.port;
         stream.active = config.active;
+        stream.encoder = config.encoder;
         msg.camera_streams.push_back(stream);
     }
     camera_info_pub_->publish(msg);
