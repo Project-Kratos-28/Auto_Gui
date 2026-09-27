@@ -30,6 +30,7 @@ protected:
 private slots:
   void onAddCamClicked();
   void onAddJoyNodeClicked();
+  void onAddTuiClicked();
   void onAddSettingsClicked();
   void onOpenMapClicked();
   void onTabCloseRequested(int index);
@@ -42,6 +43,8 @@ private:
   MapWidget *mapWidget_ = nullptr; // permanent first tab
 
   void setupAddMenu(QPushButton *btn);
+  QString nextTabTitle(const QString &prefix) const;
+  int addClosableTab(QWidget *widget, const QString &title);
 };
 
 #endif // MAINWINDOW_H

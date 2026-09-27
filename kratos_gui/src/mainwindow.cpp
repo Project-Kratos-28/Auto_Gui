@@ -13,6 +13,7 @@
 #include "joynodewidget.h"
 #include "mapwidget.h"
 #include "missionpanel.h"
+#include "tuipanel.h"
 #include "waypointpanel.h"
 
 #include <QApplication>
@@ -67,11 +68,12 @@ public:
     listWidget->addItem("Add Cam View (C)");
     listWidget->addItem("Add Joynode Panel (J)");
     listWidget->addItem("Add Settings Panel (S)");
+    listWidget->addItem("Add TUI Panel (T)");
     listWidget->addItem("Open Map View (M)");
     listWidget->setCurrentRow(0); // Select first by default
     layout->addWidget(listWidget);
 
-    setFixedSize(250, 165);
+    setFixedSize(250, 200);
   }
 
   int getSelectedIndex() const { return listWidget->currentRow(); }
@@ -91,8 +93,11 @@ protected:
     } else if (event->key() == Qt::Key_S) {
       listWidget->setCurrentRow(2);
       accept();
-    } else if (event->key() == Qt::Key_M) {
+    } else if (event->key() == Qt::Key_T) {
       listWidget->setCurrentRow(3);
+      accept();
+    } else if (event->key() == Qt::Key_M) {
+      listWidget->setCurrentRow(4);
       accept();
     } else {
       QDialog::keyPressEvent(event);
@@ -208,6 +213,8 @@ MainWindow::MainWindow(QApplication *app, QWidget *parent)
               &MainWindow::onAddJoyNodeClicked);
       connect(addMenu.addAction("Add Settings Panel"), &QAction::triggered, this,
               &MainWindow::onAddSettingsClicked);
+      connect(addMenu.addAction("Add TUI Panel"), &QAction::triggered, this,
+              &MainWindow::onAddTuiClicked);
       connect(addMenu.addAction("Open Map View"), &QAction::triggered, this,
               &MainWindow::onOpenMapClicked);
       addMenu.exec(QCursor::pos());
@@ -300,6 +307,8 @@ MainWindow::MainWindow(QApplication *app, QWidget *parent)
       } else if (dialog.getSelectedIndex() == 2) {
         onAddSettingsClicked();
       } else if (dialog.getSelectedIndex() == 3) {
+        onAddTuiClicked();
+      } else if (dialog.getSelectedIndex() == 4) {
         onOpenMapClicked();
       }
     }
@@ -418,38 +427,40 @@ void MainWindow::setupAddMenu(QPushButton *btn) {
           &MainWindow::onAddCamClicked);
   connect(addMenu->addAction("Add Joynode Panel"), &QAction::triggered, this,
           &MainWindow::onAddJoyNodeClicked);
+  connect(addMenu->addAction("Add Settings Panel"), &QAction::triggered, this,
+          &MainWindow::onAddSettingsClicked);
+  connect(addMenu->addAction("Add TUI Panel"), &QAction::triggered, this,
+          &MainWindow::onAddTuiClicked);
   connect(addMenu->addAction("Open Map View"), &QAction::triggered, this,
           &MainWindow::onOpenMapClicked);
   btn->setMenu(addMenu);
 }
 
-void MainWindow::onAddCamClicked() {
-  ui->stackedWidget->setCurrentIndex(1); // Switch to tabs view
-  int targetIndex = ui->tabWidget->count() - 1;
-  if (targetIndex < 0)
-    targetIndex = 0;
-
-  int nextNum = 1;
-  while (true) {
-    bool numUsed = false;
-    QString nameToCheck = QString("CAMS %1").arg(nextNum);
+// "CAMS 1", "CAMS 2", ...: lowest number not already used by a tab
+QString MainWindow::nextTabTitle(const QString &prefix) const {
+  for (int n = 1;; ++n) {
+    const QString title = QString("%1 %2").arg(prefix).arg(n);
+    bool used = false;
     for (int i = 0; i < ui->tabWidget->count(); ++i) {
-      if (ui->tabWidget->tabText(i) == nameToCheck) {
-        numUsed = true;
+      if (ui->tabWidget->tabText(i) == title) {
+        used = true;
         break;
       }
     }
-    if (!numUsed)
-      break;
-    nextNum++;
+    if (!used) {
+      return title;
+    }
   }
+}
 
-  CameraWidget *cw = new CameraWidget(rosWorker_, this);
-  int index = ui->tabWidget->insertTab(targetIndex, cw,
-                                       QString("CAMS %1").arg(nextNum));
+// Inserts `widget` just before the " + " tab, gives it a close button and
+// selects it. Returns the new tab index.
+int MainWindow::addClosableTab(QWidget *widget, const QString &title) {
+  ui->stackedWidget->setCurrentIndex(1); // Switch to tabs view
+  const int index = ui->tabWidget->insertTab(
+      qMax(0, ui->tabWidget->count() - 1), widget, title);
 
-  QTabBar *tabBar = ui->tabWidget->findChild<QTabBar *>();
-  if (tabBar) {
+  if (QTabBar *tabBar = ui->tabWidget->findChild<QTabBar *>()) {
     QPushButton *closeBtn = new QPushButton("✕", ui->tabWidget);
     closeBtn->setFixedSize(16, 16);
     closeBtn->setStyleSheet(
@@ -457,115 +468,42 @@ void MainWindow::onAddCamClicked() {
         "font-size: 12px; font-weight: bold; } QPushButton:hover { color: "
         "#FFFF55; }");
     tabBar->setTabButton(index, QTabBar::RightSide, closeBtn);
-    connect(closeBtn, &QPushButton::clicked, this, [this, cw]() {
-      int idx = ui->tabWidget->indexOf(cw);
-      if (idx != -1)
+    // Look the index up at click time: it shifts as other tabs come and go
+    connect(closeBtn, &QPushButton::clicked, this, [this, widget]() {
+      const int idx = ui->tabWidget->indexOf(widget);
+      if (idx != -1) {
         QTimer::singleShot(0, this, [this, idx]() { onTabCloseRequested(idx); });
+      }
     });
   }
-
   ui->tabWidget->setCurrentIndex(index);
+  return index;
+}
+
+void MainWindow::onAddCamClicked() {
+  addClosableTab(new CameraWidget(rosWorker_, this), nextTabTitle("CAMS"));
 }
 
 void MainWindow::onAddJoyNodeClicked() {
-  ui->stackedWidget->setCurrentIndex(1); // Switch to tabs view
-  int targetIndex = ui->tabWidget->count() - 1;
-  if (targetIndex < 0)
-    targetIndex = 0;
-
-  int nextNum = 1;
-  while (true) {
-    bool numUsed = false;
-    QString nameToCheck = QString("JOYNODE %1").arg(nextNum);
-    for (int i = 0; i < ui->tabWidget->count(); ++i) {
-      if (ui->tabWidget->tabText(i) == nameToCheck) {
-        numUsed = true;
-        break;
-      }
-    }
-    if (!numUsed)
-      break;
-    nextNum++;
-  }
-
   JoyNodeWidget *jw = new JoyNodeWidget(this);
-  int index = ui->tabWidget->insertTab(targetIndex, jw,
-                                       QString("JOYNODE %1").arg(nextNum));
-
   connect(rosWorker_, &RosWorker::joystickDataUpdated, jw,
           &JoyNodeWidget::updateJoystickData);
-
-  QTabBar *tabBar = ui->tabWidget->findChild<QTabBar *>();
-  if (tabBar) {
-    QPushButton *closeBtn = new QPushButton("✕", ui->tabWidget);
-    closeBtn->setFixedSize(16, 16);
-    closeBtn->setStyleSheet(
-        "QPushButton { color: #AAAAAA; border: none; background: transparent; "
-        "font-size: 12px; font-weight: bold; } QPushButton:hover { color: "
-        "#FFFF55; }");
-    tabBar->setTabButton(index, QTabBar::RightSide, closeBtn);
-    connect(closeBtn, &QPushButton::clicked, this, [this, jw]() {
-      int idx = ui->tabWidget->indexOf(jw);
-      if (idx != -1)
-        QTimer::singleShot(0, this, [this, idx]() { onTabCloseRequested(idx); });
-    });
-  }
-
-  ui->tabWidget->setCurrentIndex(index);
+  addClosableTab(jw, nextTabTitle("JOYNODE"));
 }
 
 void MainWindow::onAddSettingsClicked() {
-  ui->stackedWidget->setCurrentIndex(1); // Switch to tabs view
-  int targetIndex = ui->tabWidget->count() - 1;
-  if (targetIndex < 0)
-    targetIndex = 0;
-
-  int nextNum = 1;
-  while (true) {
-    bool numUsed = false;
-    QString nameToCheck = QString("SETTINGS %1").arg(nextNum);
-    for (int i = 0; i < ui->tabWidget->count(); ++i) {
-      if (ui->tabWidget->tabText(i) == nameToCheck) {
-        numUsed = true;
-        break;
-      }
-    }
-    if (!numUsed)
-      break;
-    nextNum++;
-  }
-
   QWidget *settingsTab = new QWidget(this);
   settingsTab->setStyleSheet("background-color: #0A0A0A;");
-
   QVBoxLayout *layout = new QVBoxLayout(settingsTab);
-  
   QLabel *todoLabel = new QLabel("⚙️ TODO: Settings Panel", settingsTab);
   todoLabel->setStyleSheet("color: #666666; font-size: 24px; font-weight: bold;");
   todoLabel->setAlignment(Qt::AlignCenter);
-
   layout->addWidget(todoLabel);
-  
-  int index = ui->tabWidget->insertTab(targetIndex, settingsTab,
-                                       QString("SETTINGS %1").arg(nextNum));
+  addClosableTab(settingsTab, nextTabTitle("SETTINGS"));
+}
 
-  QTabBar *tabBar = ui->tabWidget->findChild<QTabBar *>();
-  if (tabBar) {
-    QPushButton *closeBtn = new QPushButton("✕", ui->tabWidget);
-    closeBtn->setFixedSize(16, 16);
-    closeBtn->setStyleSheet(
-        "QPushButton { color: #AAAAAA; border: none; background: transparent; "
-        "font-size: 12px; font-weight: bold; } QPushButton:hover { color: "
-        "#FFFF55; }");
-    tabBar->setTabButton(index, QTabBar::RightSide, closeBtn);
-    connect(closeBtn, &QPushButton::clicked, this, [this, settingsTab]() {
-      int idx = ui->tabWidget->indexOf(settingsTab);
-      if (idx != -1)
-        QTimer::singleShot(0, this, [this, idx]() { onTabCloseRequested(idx); });
-    });
-  }
-
-  ui->tabWidget->setCurrentIndex(index);
+void MainWindow::onAddTuiClicked() {
+  addClosableTab(new TuiPanel(rosWorker_, this), nextTabTitle("TUI"));
 }
 
 void MainWindow::onOpenMapClicked() {

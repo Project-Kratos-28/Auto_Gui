@@ -9,12 +9,15 @@
 #include <QStringList>
 #include <QTimer>
 
+#include <map>
+
 #include <kratos_msgs/msg/camera_stream_list.hpp>
 #include <kratos_msgs/srv/start_camera_stream.hpp>
 #include <kratos_msgs/srv/stop_camera_stream.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <waypoint_interfaces/srv/add_waypoint.hpp>
 #include <waypoint_interfaces/srv/get_waypoint.hpp>
 #include <waypoint_interfaces/srv/list_waypoints.hpp>
@@ -57,6 +60,10 @@ signals:
   // rover_bridge
   void autoModeResult(bool requested, bool success, QString message);
 
+  // system_control on the Orin (runs ~/kratos_glim start.sh / stop.sh)
+  void systemServiceStatusChanged(bool online);
+  void systemResult(QString action, bool success, QString message);
+
 public slots:
   void init();
   void callStartStream(QString cameraName);
@@ -66,6 +73,11 @@ public slots:
   void callGetWaypoint(QString name);
   void callSaveWaypoints(QString path);
   void callSetAutoMode(bool autoMode);
+
+  // action: start | stop | diagnose | health | log | status | get_config | rviz
+  void callSystem(QString action);
+  // Sets "key=value" parameters on system_control, then calls action
+  void callSystemWith(QString action, QStringList settings);
 
 private:
   void
@@ -96,6 +108,14 @@ private:
   rclcpp::Client<waypoint_interfaces::srv::SaveWaypoints>::SharedPtr
       saveWaypointsClient_;
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr setAutoClient_;
+
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr systemClient(
+      const QString &action);
+  std::map<QString, rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr>
+      systemClients_;
+  rclcpp::AsyncParametersClient::SharedPtr systemParams_;
+  QTimer *systemPollTimer_ = nullptr;
+  bool isSystemServiceOnline_ = false;
 
   QTimer *waypointPollTimer_ = nullptr;
   bool listInFlight_ = false;

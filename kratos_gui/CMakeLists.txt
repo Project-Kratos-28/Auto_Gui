@@ -23,7 +23,7 @@ find_package(rviz_common REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GST REQUIRED
+pkg_check_modules(GST REQUIRED IMPORTED_TARGET
   gstreamer-1.0
   gstreamer-video-1.0
   gstreamer-app-1.0
@@ -57,17 +57,19 @@ add_executable(kratos_gui
   src/waypointpanel.h
   src/missionpanel.cpp
   src/missionpanel.h
+  src/tuipanel.cpp
+  src/tuipanel.h
+  src/tuipanel.ui
 )
 
 target_include_directories(kratos_gui PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${GST_INCLUDE_DIRS}
 )
 
 target_link_libraries(kratos_gui
   Qt5::Widgets
-  ${GST_LIBRARIES}
+  PkgConfig::GST
 )
 
 ament_target_dependencies(kratos_gui

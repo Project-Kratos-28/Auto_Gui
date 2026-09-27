@@ -81,8 +81,12 @@ void VideoPlayerWidget::switchStream(const QString &cameraName, int port,
 }
 
 void VideoPlayerWidget::onNewFrame(QImage frame) {
+  videoWorker_->frameConsumed();
+  if (!streaming_) {
+    return; // late frame after stop; keep the placeholder
+  }
   videoLabel_->setPixmap(QPixmap::fromImage(frame).scaled(
-      videoLabel_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+      videoLabel_->size(), Qt::KeepAspectRatio, Qt::FastTransformation));
 }
 
 void VideoPlayerWidget::onPipelineError(QString errorMsg) {

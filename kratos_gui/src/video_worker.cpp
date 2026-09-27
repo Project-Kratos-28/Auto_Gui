@@ -153,6 +153,12 @@ GstFlowReturn VideoWorker::onNewSample(GstAppSink *sink, gpointer userData) {
     return GST_FLOW_ERROR;
   }
 
+  // GUI is behind: drop this frame instead of queueing 720p copies
+  if (self->framesInFlight_ >= 2) {
+    gst_sample_unref(sample);
+    return GST_FLOW_OK;
+  }
+
   GstBuffer *buffer = gst_sample_get_buffer(sample);
   GstCaps *caps = gst_sample_get_caps(sample);
 
@@ -187,6 +193,7 @@ GstFlowReturn VideoWorker::onNewSample(GstAppSink *sink, gpointer userData) {
   gst_buffer_unmap(buffer, &mapInfo);
   gst_sample_unref(sample);
 
+  ++self->framesInFlight_;
   emit self->newFrame(copied);
 
   return GST_FLOW_OK;
