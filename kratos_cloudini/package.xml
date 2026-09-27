@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>kratos_cloudini</name>
+  <version>0.0.0</version>
+  <description>Laptop side of the Cloudini point cloud link: decompresses the Orin's compressed GLIM clouds for the GUI's RViz</description>
+  <maintainer email="zerob@todo.todo">zerob</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <!-- Same apt version (1.1.0, encoding v4) on laptop and Orin; see README -->
+  <depend>cloudini_lib</depend>
+  <!-- Type support for the generic subscription/publisher at runtime -->
+  <exec_depend>point_cloud_interfaces</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

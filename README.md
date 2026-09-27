@@ -19,6 +19,7 @@ plus the rover's camera streaming node.
 | `kratos_gui/` | Operator laptop | Qt5 + ROS 2 GUI. Details: [`kratos_gui/README.md`](kratos_gui/README.md) |
 | `kratos_cameras/` | Rover (Jetson Orin) | Finds cameras, streams them to the laptop with GStreamer (H.265 over UDP or AV1 over TCP) |
 | `kratos_msgs/` | Both | Camera stream messages and start/stop services |
+| `kratos_cloudini/` | Operator laptop | Decompresses the Orin's Cloudini-compressed GLIM clouds for the GUI's RViz. Details: [`kratos_cloudini/README.md`](kratos_cloudini/README.md) |
 
 ## How it connects to auto_fastlio2
 
@@ -65,6 +66,13 @@ sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
 `libav` decodes the H.265 camera streams, and `plugins-bad` has the AV1
 decoders used for the ZED and gimbal cameras.
 
+Also install Cloudini, used to receive compressed point clouds from the Orin
+(see [Compressed point clouds](#compressed-point-clouds-cloudini)):
+
+```bash
+sudo apt install ros-humble-cloudini-ros ros-humble-point-cloud-interfaces
+```
+
 ### Step 2: Build the auto_fastlio2 packages the GUI needs
 
 ```bash
@@ -84,7 +92,11 @@ Expected: `Summary: 2 packages finished`.
 mkdir -p ~/kratos_gui_ws/src
 ln -s ~/Auto_Gui/kratos_msgs ~/kratos_gui_ws/src/kratos_msgs
 ln -s ~/Auto_Gui/kratos_gui  ~/kratos_gui_ws/src/kratos_gui
+ln -s ~/Auto_Gui/kratos_cloudini ~/kratos_gui_ws/src/kratos_cloudini
 ```
+
+Already set up the workspace before `kratos_cloudini` existed? Run just the
+last `ln -s` line.
 
 The workspace sits outside this repo so `build/`, `install/` and `log/` stay
 out of git. The symlinks build whichever branch of `~/Auto_Gui` is checked out.
@@ -98,7 +110,7 @@ source ~/auto_fastlio2/install/setup.bash
 colcon build --symlink-install --cmake-args -Ddraco_DIR=/usr/lib/x86_64-linux-gnu/cmake/draco
 ```
 
-Expected: `Summary: 2 packages finished` (about a minute).
+Expected: `Summary: 3 packages finished` (about a minute).
 
 The `-Ddraco_DIR` flag points CMake at the system draco library. Without it,
 a user-local copy in `~/.local/share/cmake/draco` (if one exists) gets picked
@@ -143,11 +155,43 @@ running (below).
 | `Package 'kratos_gui' not found` | A `source` line from step 5 was skipped |
 | `cannot find -ldraco_shared` while building | The `--cmake-args -Ddraco_DIR=...` part of step 4 was dropped |
 | `Could not find a package configuration file provided by "waypoint_interfaces"` | Step 2 wasn't run, or `~/auto_fastlio2/install/setup.bash` wasn't sourced before step 4. Also happens when building inside `~/Auto_Gui` instead of `~/kratos_gui_ws` |
+| `Could not find a package configuration file provided by "cloudini_lib"` | The Cloudini apt packages from step 1 aren't installed |
 | colcon tries to build `kratos_cameras` on the laptop | You're building in `~/Auto_Gui`. Clean up (see the note above) and build in `~/kratos_gui_ws`, which only links `kratos_msgs` and `kratos_gui` |
 | `ln: failed to create symbolic link ... File exists` in step 3 | The links already exist from an earlier run. Nothing to do |
 | `GLIM: OFFLINE` although GLIM is running | Different `ROS_DOMAIN_ID` from GLIM's terminal, or GLIM started without sourcing auto_fastlio2's install (so no waypoint_manager) |
 | Start Mission fails with `kratos_nav not found` | `~/auto_fastlio2/install/setup.bash` wasn't sourced before launching the GUI |
 | Window fails with "Unable to create the rendering window" | No usable display. RViz needs a real desktop session (not SSH without X forwarding, not `QT_QPA_PLATFORM=offscreen`) |
+
+## Compressed point clouds (Cloudini)
+
+Over the radio, GLIM's point clouds (the live scan and the growing map) are
+the heaviest traffic the GUI pulls. With Cloudini, the Orin compresses them
+before sending and the laptop decompresses them for RViz. GLIM, pcd2pgm and
+Nav2 on the Orin still use the full clouds.
+
+1. In the GUI's **TUI** tab, tick **Cloudini** before pressing START, so the Orin
+   compresses.
+2. Launch the GUI with the decoders:
+
+   ```bash
+   ros2 launch kratos_gui kratos_gui.launch.py cloudini:=true
+   ```
+
+   This starts `kratos_cloudini`'s two decoders and loads
+   `kratos_gui/config/kratos_cloudini.rviz`, which shows the decoded clouds
+   ("GLIM scan/map (Cloudini)"). Closing the GUI stops the decoders.
+
+- If the Orin isn't compressing, the Cloudini displays stay empty. Either
+  launch without `cloudini:=true`, or turn on the "GLIM scan/map (raw, not
+  compressed)" displays in RViz. Those pull the full clouds over the radio.
+- Each decoder logs MB received vs decoded every 10 s: that's the real
+  compression ratio on your link.
+
+> **Status:** the laptop side is done and tested locally with a stand-in
+> encoder. The Orin-side encoder (`cloudini:=true` in `auto_fastlio2`
+> `jazzy-nvblox`) isn't implemented yet: the switch exists but the launch file
+> ignores it. The topic names, QoS and version rules both sides must follow
+> are in [`kratos_cloudini/README.md`](kratos_cloudini/README.md#contract-with-the-orin-encoder).
 
 ## Rover side (cameras)
 
