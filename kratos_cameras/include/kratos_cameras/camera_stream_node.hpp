@@ -37,6 +37,7 @@ struct StreamProfile
     int fps{0};
     std::string format;
     std::string encoder{"av1"};
+    std::string jpeg_decoder{"hw"};  // MJPG only: hw (nvv4l2decoder) or sw (jpegdec)
 };
 
 struct CameraStreamConfig
@@ -50,6 +51,7 @@ struct CameraStreamConfig
     int bitrate{0};
     std::string format;
     std::string encoder{"av1"};
+    std::string jpeg_decoder{"hw"};  // MJPG only: hw (nvv4l2decoder) or sw (jpegdec)
 };
 
 class CameraStreamNode : public rclcpp::Node

@@ -248,9 +248,15 @@ std::string GstStreamManager::build_pipeline_description(
   
   if (config.format == "MJPG") {
       ss << "image/jpeg,width=" << config.width << ",height=" << config.height
-         << ",framerate=" << config.fps << "/1 ! "
-         << "nvv4l2decoder mjpeg=1 ! "
-         << "nvvidconv ! "
+         << ",framerate=" << config.fps << "/1 ! ";
+      // nvv4l2decoder gives 4:2:2 (Y42B) for some cameras (OBSBOT Tiny 2 Lite at 1080p),
+      // and live those frames never reach the encoder: jpegdec (CPU) for those profiles
+      if (config.jpeg_decoder == "sw") {
+        ss << "jpegdec ! ";
+      } else {
+        ss << "nvv4l2decoder mjpeg=1 ! ";
+      }
+      ss << "nvvidconv ! "
          << "video/x-raw(memory:NVMM),format=NV12 ! ";
   } else {
       ss << "video/x-raw,format=" << config.format << ",width=" << config.width << ",height=" << config.height

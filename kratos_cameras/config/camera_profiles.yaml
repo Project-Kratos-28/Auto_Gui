@@ -20,5 +20,8 @@ camera_stream_node:
     profiles.gimbal.width: 1920
     profiles.gimbal.height: 1080
     profiles.gimbal.fps: 60
-    profiles.gimbal.format: YUY2
+    # OBSBOT Tiny 2 Lite (detected as gimbal): 1080p only as MJPG, and its MJPG needs the
+    # software decoder (the hardware one stalls on its 4:2:2 frames)
+    profiles.gimbal.format: MJPG
+    profiles.gimbal.jpeg_decoder: sw  # Options: hw (default), sw
     profiles.gimbal.encoder: av1  # Options: av1, h265
