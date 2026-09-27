@@ -20,6 +20,8 @@
   <depend>libgstreamer1.0-dev</depend>
   <depend>libgstreamer-plugins-base1.0-dev</depend>
   <exec_depend>kratos_nav</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>kratos_cloudini</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
