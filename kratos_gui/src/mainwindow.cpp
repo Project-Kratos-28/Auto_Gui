@@ -68,7 +68,7 @@ public:
     listWidget->addItem("Add Cam View (C)");
     listWidget->addItem("Add Joynode Panel (J)");
     listWidget->addItem("Add Settings Panel (S)");
-    listWidget->addItem("Add TUI Panel (T)");
+    listWidget->addItem("Add Main Control Panel (T)");
     listWidget->addItem("Open Map View (M)");
     listWidget->setCurrentRow(0); // Select first by default
     layout->addWidget(listWidget);
@@ -213,7 +213,7 @@ MainWindow::MainWindow(QApplication *app, QWidget *parent)
               &MainWindow::onAddJoyNodeClicked);
       connect(addMenu.addAction("Add Settings Panel"), &QAction::triggered, this,
               &MainWindow::onAddSettingsClicked);
-      connect(addMenu.addAction("Add TUI Panel"), &QAction::triggered, this,
+      connect(addMenu.addAction("Add Main Control Panel"), &QAction::triggered, this,
               &MainWindow::onAddTuiClicked);
       connect(addMenu.addAction("Open Map View"), &QAction::triggered, this,
               &MainWindow::onOpenMapClicked);
@@ -430,7 +430,7 @@ void MainWindow::setupAddMenu(QPushButton *btn) {
           &MainWindow::onAddJoyNodeClicked);
   connect(addMenu->addAction("Add Settings Panel"), &QAction::triggered, this,
           &MainWindow::onAddSettingsClicked);
-  connect(addMenu->addAction("Add TUI Panel"), &QAction::triggered, this,
+  connect(addMenu->addAction("Add Main Control Panel"), &QAction::triggered, this,
           &MainWindow::onAddTuiClicked);
   connect(addMenu->addAction("Open Map View"), &QAction::triggered, this,
           &MainWindow::onOpenMapClicked);
@@ -504,7 +504,7 @@ void MainWindow::onAddSettingsClicked() {
 }
 
 void MainWindow::onAddTuiClicked() {
-  addClosableTab(new TuiPanel(rosWorker_, this), nextTabTitle("TUI"));
+  addClosableTab(new TuiPanel(rosWorker_, this), nextTabTitle("MAIN CONTROL"));
 }
 
 void MainWindow::onOpenMapClicked() {

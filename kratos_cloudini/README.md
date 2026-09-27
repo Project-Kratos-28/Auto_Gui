@@ -74,7 +74,7 @@ navigate changes.
 |---|---|---|---|
 | **Decoder** (this package) + GUI launch file + RViz config | Laptop, ROS 2 Humble | `Auto_Gui`, branch `cloudini-implementation` | done, tested locally |
 | **Encoder** (two stock Cloudini converter nodes) | Orin, ROS 2 Jazzy, inside the `kratos_glim` Docker container | `auto_fastlio2`, a branch off `jazzy-nvblox` | not written yet |
-| **Switch** (TUI tab "Cloudini" checkbox, `start_tui.sh` row 8) | Laptop GUI → Orin `start.sh` | `Auto_Gui` (`tuipanel.cpp`, `orin_system_control`) and `auto_fastlio2` (`start_tui.sh`) | exists: passes `cloudini:=true` to the Orin launch, which currently ignores it |
+| **Switch** (MAIN CONTROL tab "Cloudini" checkbox, `start_tui.sh` row 8) | Laptop GUI → Orin `start.sh` | `Auto_Gui` (`tuipanel.cpp`, `orin_system_control`) and `auto_fastlio2` (`start_tui.sh`) | exists: passes `cloudini:=true` to the Orin launch, which currently ignores it |
 
 The two halves are tied together only by the
 [contract](#9-the-contract-with-the-orin-encoder): topic names, message type,
@@ -253,7 +253,7 @@ source ~/kratos_gui_ws/install/setup.bash
    ros2 launch kratos_gui kratos_gui.launch.py cloudini:=true
    ```
 
-2. In the GUI's **TUI** tab, tick **Cloudini**, then press **START**. This
+2. In the GUI's **MAIN CONTROL** tab, tick **Cloudini**, then press **START**. This
    starts the Orin stack with `cloudini:=true`. The Orin side has to exist
    for this to do anything ([section 10](#10-the-orin-side-encoder)).
 
@@ -474,7 +474,7 @@ DeclareLaunchArgument('cloudini_resolution', default_value='0.001',
    ```
    Then run the GUI on the laptop with `cloudini:=true` ([section 7](#7-running-it)).
 2. *Real*, after the three changes: `./stop.sh`, `./docker/build_image.sh`,
-   `./start.sh cloudini:=true` (or tick Cloudini in the GUI's TUI tab and
+   `./start.sh cloudini:=true` (or tick Cloudini in the GUI's MAIN CONTROL tab and
    press START).
 3. *Checks inside the container:*
    ```bash
@@ -603,7 +603,7 @@ ros2 launch kratos_gui kratos_gui.launch.py [cloudini:=true|false]
 | `Could not find a package configuration file provided by "cloudini_lib"` when building | Cloudini not installed | [Step 2](#6-laptop-setup-step-by-step) |
 | Decoder dies at start: `failed to load type support` / `point_cloud_interfaces` | message type not installed | `sudo apt install ros-humble-point-cloud-interfaces` |
 | Decoder dies at start: `input_topic and output_topic must both be set` | node run by hand without parameters | use `decoder.launch.py`, or pass both `-p` parameters |
-| Cloudini displays empty, and `ros2 topic list` on the laptop has no `/compressed` topics | the Orin isn't compressing: Cloudini not ticked before START, encoder not implemented yet, or it failed on the Orin | tick Cloudini in the TUI tab and restart; check `./logs.sh cloudini` on the Orin |
+| Cloudini displays empty, and `ros2 topic list` on the laptop has no `/compressed` topics | the Orin isn't compressing: Cloudini not ticked before START, encoder not implemented yet, or it failed on the Orin | tick Cloudini in the MAIN CONTROL tab and restart; check `./logs.sh cloudini` on the Orin |
 | No `/glim_ros/...` topics on the laptop at all | network: different `ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY` set, or the radio drops DDS multicast discovery | match the domain; unset `ROS_LOCALHOST_ONLY`; on the Orin, set `ROS_STATIC_PEERS=<laptop IP>` in `ros_network.env` and restart |
 | `/compressed` topics listed, but the decoder log never shows "clouds in 10 s" | QoS mismatch (e.g. the map encoder publishes best effort), or Humble↔Jazzy doesn't work for this type | `ros2 topic info -v /glim_ros/map/compressed` on the laptop: the publisher must be RELIABLE. If QoS is right, it's the distro mix: report it |
 | Decoder logs `cannot decompress: Unsupported encoding version` | the two sides run different Cloudini versions | use apt 1.1.0 on both ([version rule](#cloudini-version-rule)) |

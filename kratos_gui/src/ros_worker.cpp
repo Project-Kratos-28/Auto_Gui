@@ -58,7 +58,7 @@ void RosWorker::init() {
       node_->create_client<std_srvs::srv::SetBool>("/rover_bridge/set_auto");
 
   // system_control on the Orin. Its services come and go with the node, so
-  // watch one of them and tell the TUI panel.
+  // watch one of them and tell the MAIN CONTROL panel.
   for (const char *a : {"start", "stop", "diagnose", "health", "log", "status",
                         "get_config"}) {
     systemClients_[a] = node_->create_client<std_srvs::srv::Trigger>(

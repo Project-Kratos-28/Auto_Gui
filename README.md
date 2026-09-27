@@ -133,7 +133,7 @@ To skip the three `source` lines each time, add them to the end of `~/.bashrc`.
 ### What you should see
 
 The **Kratos Command Center** window opens empty, with an **ADD +** button.
-Pick what to open from it (or `Ctrl+T`): Cam View, Joynode, Settings, TUI or
+Pick what to open from it (or `Ctrl+T`): Cam View, Joynode, Settings, Main Control or
 Map View (`M`). The **MAP** tab shows:
 
 - **Left:** RViz with its Displays list. The view stays empty and warns
@@ -171,7 +171,7 @@ the heaviest traffic the GUI pulls. With Cloudini, the Orin compresses them
 before sending and the laptop decompresses them for RViz. GLIM, pcd2pgm and
 Nav2 on the Orin still use the full clouds.
 
-1. In the GUI's **TUI** tab, tick **Cloudini** before pressing START, so the Orin
+1. In the GUI's **MAIN CONTROL** tab, tick **Cloudini** before pressing START, so the Orin
    compresses.
 2. Launch the GUI with the decoders:
 

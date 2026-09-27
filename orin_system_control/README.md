@@ -1,6 +1,6 @@
 # orin_system_control
 
-The Orin side of the GUI's TUI tab. `system_control.py` serves `/kratos_system/*`
+The Orin side of the GUI's MAIN CONTROL tab. `system_control.py` serves `/kratos_system/*`
 (`std_srvs/Trigger`) and runs the matching part of `~/kratos_glim` (`start.sh`, `stop.sh`,
 the `start_tui.sh` checks), so nobody needs a terminal on the Orin.
 
