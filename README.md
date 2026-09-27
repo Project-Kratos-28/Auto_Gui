@@ -120,14 +120,16 @@ To skip the three `source` lines each time, add them to the end of `~/.bashrc`.
 
 ### What you should see
 
-The **Kratos Command Center** window opens on the **MAP** tab:
+The **Kratos Command Center** window opens empty, with an **ADD +** button.
+Pick what to open from it (or `Ctrl+T`): Cam View, Joynode, Settings, TUI or
+Map View (`M`). The **MAP** tab shows:
 
 - **Left:** RViz with its Displays list. The view stays empty and warns
   "No tf data" until GLIM is running.
 - **Right:** the **WAYPOINTS** panel shows `GLIM: OFFLINE` with LOG WAYPOINT
   greyed out, and the **MISSION** panel is below it.
-- **Tabs:** the `+` tab (or `Ctrl+T`) adds Camera or Joystick tabs, or
-  reopens the MAP tab if you closed it (`Ctrl+T` then `M`). Closing MAP only
+- **Tabs:** the `+` tab (or `Ctrl+T`) adds more tabs, or reopens the MAP
+  tab if you closed it (`Ctrl+T` then `M`). Closing MAP only
   hides it: RViz and any running mission keep going. Press `/`
   to see every shortcut.
 

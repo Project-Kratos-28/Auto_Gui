@@ -97,12 +97,6 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
   auto *configBox = new QGroupBox("SETTINGS (applied on START)");
   auto *form = new QFormLayout(configBox);
 
-  mid360Ip_ = new QLineEdit();
-  mid360Ip_->setToolTip("The MID-360's own IP: 192.168.1.1XX, XX = last 2 "
-                        "digits of its serial");
-  orinLidarIp_ = new QLineEdit();
-  orinLidarIp_->setToolTip("The Orin's IP on the LiDAR port, where the "
-                           "MID-360 sends its data");
   laptopPeer_ = new QLineEdit();
   laptopPeer_->setPlaceholderText("empty = multicast discovery");
   laptopPeer_->setToolTip("This laptop's IP, if the radio link drops "
@@ -120,8 +114,6 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
   cloudini_ = new QCheckBox("compress the clouds for this laptop");
   domain_ = new QLabel("-");
 
-  form->addRow("MID-360 IP", mid360Ip_);
-  form->addRow("Orin LiDAR IP", orinLidarIp_);
   form->addRow("Laptop peer", laptopPeer_);
   form->addRow("Depth", depth_);
   form->addRow("LiDAR Z (m)", lidarZ_);
@@ -140,7 +132,6 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
   stopBtn_ = new QPushButton("STOP");
   diagnoseBtn_ = new QPushButton("DIAGNOSE");
   healthBtn_ = new QPushButton("HEALTH");
-  rvizBtn_ = new QPushButton("RVIZ ON ORIN");
   statusBtn_ = new QPushButton("STATUS");
   logBtn_ = new QPushButton("LOG");
   reloadBtn_ = new QPushButton("RELOAD SETTINGS");
@@ -163,7 +154,6 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
   auto *row2 = new QHBoxLayout();
   row2->addWidget(diagnoseBtn_);
   row2->addWidget(healthBtn_);
-  row2->addWidget(rvizBtn_);
   auto *row3 = new QHBoxLayout();
   row3->addWidget(logBtn_);
   row3->addWidget(logFilter_, 1);
@@ -205,7 +195,6 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
     updateButtons();
     call("health");
   });
-  connect(rvizBtn_, &QPushButton::clicked, this, [this]() { call("rviz"); });
   connect(statusBtn_, &QPushButton::clicked, this, [this]() {
     manualStatus_ = true;
     call("status");
@@ -240,9 +229,7 @@ TuiPanel::TuiPanel(RosWorker *rosWorker, QWidget *parent)
 }
 
 QStringList TuiPanel::settings() const {
-  return {"mid360_ip=" + mid360Ip_->text(),
-          "orin_lidar_ip=" + orinLidarIp_->text(),
-          "laptop_peer=" + laptopPeer_->text(),
+  return {"laptop_peer=" + laptopPeer_->text(),
           "depth=" + depth_->currentText(),
           "lidar_z=" + lidarZ_->text(),
           "gui=" + gui_->currentText(),
@@ -264,9 +251,7 @@ void TuiPanel::callWith(const QString &action, const QStringList &settings) {
 void TuiPanel::applyConfig(const QString &config) {
   for (const QString &line : config.split('\n')) {
     const QString k = line.section('=', 0, 0), v = line.section('=', 1);
-    if (k == "mid360_ip") mid360Ip_->setText(v);
-    else if (k == "orin_lidar_ip") orinLidarIp_->setText(v);
-    else if (k == "laptop_peer") laptopPeer_->setText(v);
+    if (k == "laptop_peer") laptopPeer_->setText(v);
     else if (k == "depth") depth_->setCurrentText(v);
     else if (k == "lidar_z") lidarZ_->setText(v);
     else if (k == "gui") gui_->setCurrentText(v);
@@ -357,7 +342,7 @@ void TuiPanel::updateButtons() {
   for (QPushButton *b : {startBtn_, diagnoseBtn_, healthBtn_}) {
     b->setEnabled(online_ && !busy_);
   }
-  for (QPushButton *b : {stopBtn_, statusBtn_, logBtn_, rvizBtn_, reloadBtn_}) {
+  for (QPushButton *b : {stopBtn_, statusBtn_, logBtn_, reloadBtn_}) {
     b->setEnabled(online_);
   }
 }
@@ -365,7 +350,8 @@ void TuiPanel::updateButtons() {
 void TuiPanel::appendOutput(const QString &text, const QString &color) {
   const QString line = QDateTime::currentDateTime().toString("HH:mm:ss ") +
                        text.trimmed().toHtmlEscaped();
+  // Always a tag: without one QTextEdit guesses plain text and shows the escapes (&gt;)
   output_->append(color.isEmpty()
-                      ? line
+                      ? "<span>" + line + "</span>"
                       : "<span style='color:" + color + "'>" + line + "</span>");
 }

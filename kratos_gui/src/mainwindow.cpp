@@ -236,9 +236,10 @@ MainWindow::MainWindow(QApplication *app, QWidget *parent)
 
   // MAP tab (embedded RViz + waypoints + mission). Created once and never
   // destroyed: closing the tab only hides it, so RViz and a running mission
-  // survive, and "Open Map View" brings the same one back.
+  // survive, and "Open Map View" brings the same one back. Not opened at start:
+  // the window starts empty and the operator picks what to open.
   mapWidget_ = new MapWidget(app, rosWorker_, this);
-  onOpenMapClicked();
+  mapWidget_->hide();  // not in a tab yet: would otherwise draw at the window's corner
 
   // ── Application Hotkeys ──────────────────────────────────────────
   

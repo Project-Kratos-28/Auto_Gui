@@ -39,8 +39,6 @@ private:
   bool manualStatus_ = false;  // STATUS pressed: also print it in the output
   bool configLoaded_ = false;  // fields filled from the Orin's files
 
-  QLineEdit *mid360Ip_;
-  QLineEdit *orinLidarIp_;
   QLineEdit *laptopPeer_;
   QComboBox *depth_;
   QLineEdit *lidarZ_;
@@ -54,7 +52,6 @@ private:
   QPushButton *stopBtn_;
   QPushButton *diagnoseBtn_;
   QPushButton *healthBtn_;
-  QPushButton *rvizBtn_;
   QPushButton *statusBtn_;
   QPushButton *logBtn_;
   QPushButton *reloadBtn_;

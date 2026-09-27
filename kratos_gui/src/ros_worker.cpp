@@ -60,7 +60,7 @@ void RosWorker::init() {
   // system_control on the Orin. Its services come and go with the node, so
   // watch one of them and tell the TUI panel.
   for (const char *a : {"start", "stop", "diagnose", "health", "log", "status",
-                        "get_config", "rviz"}) {
+                        "get_config"}) {
     systemClients_[a] = node_->create_client<std_srvs::srv::Trigger>(
         std::string("/kratos_system/") + a);
   }
