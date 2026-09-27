@@ -190,8 +190,15 @@ Nav2 on the Orin still use the full clouds.
 > **Status:** the laptop side is done and tested locally with a stand-in
 > encoder. The Orin-side encoder (`cloudini:=true` in `auto_fastlio2`
 > `jazzy-nvblox`) isn't implemented yet: the switch exists but the launch file
-> ignores it. The topic names, QoS and version rules both sides must follow
-> are in [`kratos_cloudini/README.md`](kratos_cloudini/README.md#contract-with-the-orin-encoder).
+> ignores it.
+
+**Full guide:** [`kratos_cloudini/README.md`](kratos_cloudini/README.md) covers the idea,
+the workflow, what's done and what's left, every requirement, step-by-step
+setup, testing without the rover, the
+[contract](kratos_cloudini/README.md#9-the-contract-with-the-orin-encoder) both sides
+must follow, the complete
+[recipe for the Orin encoder](kratos_cloudini/README.md#10-the-orin-side-encoder),
+measuring, and troubleshooting.
 
 ## Rover side (cameras)
 
@@ -254,3 +261,9 @@ that, so the AUTO label only shows the last mode set from the GUI.
 - Tested against simulated waypoint and rover_bridge services: waypoint
   logging, 2D/3D view, AUTO, mission start and cancel.
 - Not yet tested on the real rover: live GLIM/Nav2 missions, camera video.
+- Cloudini: laptop decoder done and tested locally (branch
+  `cloudini-implementation`); Orin encoder not written yet. See
+  [`kratos_cloudini/README.md`](kratos_cloudini/README.md#4-whats-done-and-whats-left).
+- Open issue: the Orin stack (`auto_fastlio2` `jazzy-nvblox`) removed
+  `rover_bridge.py`, so the AUTO / MANUAL buttons have no service to call
+  there. The team needs to decide what drives the wheels from `/cmd_vel`.
