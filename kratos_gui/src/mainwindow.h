@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 
 #include "ros_worker.h"
+#include "spectrometerwidget.h"
 
 class MapWidget;
 
@@ -34,6 +35,7 @@ private slots:
   void onAddSettingsClicked();
   void onOpenMapClicked();
   void onTabCloseRequested(int index);
+  void onAddSpectrometerClicked();
 
 private:
   Ui::MainWindow *ui;

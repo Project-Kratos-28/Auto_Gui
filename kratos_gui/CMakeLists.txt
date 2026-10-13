@@ -20,7 +20,7 @@ find_package(waypoint_interfaces REQUIRED)   # from auto_fastlio2 (GLIM waypoint
 find_package(ament_index_cpp REQUIRED)
 find_package(rviz_common REQUIRED)
 # RViz2 on Humble is built against Qt5, and Qt5/Qt6 can't share a process.
-find_package(Qt5 REQUIRED COMPONENTS Widgets)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Charts)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GST REQUIRED IMPORTED_TARGET
@@ -60,6 +60,8 @@ add_executable(kratos_gui
   src/tuipanel.cpp
   src/tuipanel.h
   src/tuipanel.ui
+  src/spectrometerwidget.cpp
+  src/spectrometerwidget.h
 )
 
 target_include_directories(kratos_gui PRIVATE
@@ -69,6 +71,7 @@ target_include_directories(kratos_gui PRIVATE
 
 target_link_libraries(kratos_gui
   Qt5::Widgets
+  Qt5::Charts
   PkgConfig::GST
 )
 

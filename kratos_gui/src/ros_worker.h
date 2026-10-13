@@ -22,7 +22,7 @@
 #include <waypoint_interfaces/srv/get_waypoint.hpp>
 #include <waypoint_interfaces/srv/list_waypoints.hpp>
 #include <waypoint_interfaces/srv/save_waypoints.hpp>
-
+#include <std_msgs/msg/float32_multi_array.hpp>
 // Struct to store camera info
 struct CameraInfo {
   QString name;
@@ -63,6 +63,9 @@ signals:
   // system_control on the Orin (runs ~/kratos_glim start.sh / stop.sh)
   void systemServiceStatusChanged(bool online);
   void systemResult(QString action, bool success, QString message);
+
+  // spectrometer
+  void spectrometerUpdated(const QVector<double>& data);
 
 public slots:
   void init();
@@ -114,6 +117,9 @@ private:
   std::map<QString, rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr>
       systemClients_;
   rclcpp::AsyncParametersClient::SharedPtr systemParams_;
+
+  rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr spec_sub_;
+
   QTimer *systemPollTimer_ = nullptr;
   bool isSystemServiceOnline_ = false;
 

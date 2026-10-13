@@ -11,6 +11,7 @@ RosWorker::~RosWorker() {
   }
   cameraSub_.reset();
   joySub_.reset();
+  spec_sub_.reset();
   addWaypointClient_.reset();
   getWaypointClient_.reset();
   listWaypointsClient_.reset();
@@ -108,6 +109,14 @@ void RosWorker::init() {
   connect(waypointPollTimer_, &QTimer::timeout, this,
           &RosWorker::pollWaypoints);
   waypointPollTimer_->start(1000);
+
+  spec_sub_ = node_->create_subscription<std_msgs::msg::Float32MultiArray>(
+      "/kratos/spectrometer", 10,
+      [this](const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
+        QVector<double> data(msg->data.begin(), msg->data.end());
+        emit spectrometerUpdated(data);
+      });
+
 }
 
 void RosWorker::onCameraListReceived(
@@ -121,6 +130,8 @@ void RosWorker::onCameraListReceived(
     info.encoder = QString::fromStdString(cam.encoder);
     cameras.append(info);
   }
+
+  
 
   // Auto-restart timer since we received a list
   serverAliveTimer_->start(3000);

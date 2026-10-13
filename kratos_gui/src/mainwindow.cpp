@@ -15,6 +15,7 @@
 #include "missionpanel.h"
 #include "tuipanel.h"
 #include "waypointpanel.h"
+#include "spectrometerwidget.h"
 
 #include <QApplication>
 #include <QShortcut>
@@ -26,13 +27,18 @@
 #include <QMessageBox>
 #include <QTimer>
 
+
+
 static bool _registered = []() {
   qRegisterMetaType<CameraStatusList>("CameraStatusList");
   qRegisterMetaType<QImage>("QImage");
   qRegisterMetaType<QList<float>>("QList<float>");
   qRegisterMetaType<QList<int>>("QList<int>");
+  qRegisterMetaType<QVector<double>>("QVector<double>");
   return true;
 }();
+
+
 
 // ─── Custom Dialog for Add Tab (Ctrl+T) ────────────────────────────
 class AddTabDialog : public QDialog {
@@ -70,6 +76,7 @@ public:
     listWidget->addItem("Add Settings Panel (S)");
     listWidget->addItem("Add TUI Panel (T)");
     listWidget->addItem("Open Map View (M)");
+    listWidget->addItem("Add Spectrometer Panel (P)");
     listWidget->setCurrentRow(0); // Select first by default
     layout->addWidget(listWidget);
 
@@ -99,7 +106,12 @@ protected:
     } else if (event->key() == Qt::Key_M) {
       listWidget->setCurrentRow(4);
       accept();
-    } else {
+    }
+    else if (event->key() == Qt::Key_P) {
+      listWidget->setCurrentRow(5);
+      accept();
+    }
+    else {
       QDialog::keyPressEvent(event);
     }
   }
@@ -217,6 +229,8 @@ MainWindow::MainWindow(QApplication *app, QWidget *parent)
               &MainWindow::onAddTuiClicked);
       connect(addMenu.addAction("Open Map View"), &QAction::triggered, this,
               &MainWindow::onOpenMapClicked);
+      connect(addMenu.addAction("Add Spectrometer Panel"), &QAction::triggered, this,
+              &MainWindow::onAddSpectrometerClicked);        
       addMenu.exec(QCursor::pos());
     }
   });
@@ -311,6 +325,10 @@ MainWindow::MainWindow(QApplication *app, QWidget *parent)
       } else if (dialog.getSelectedIndex() == 4) {
         onOpenMapClicked();
       }
+      else if (dialog.getSelectedIndex() == 5) {
+        onAddSpectrometerClicked();
+      }
+      
     }
   });
 
@@ -433,6 +451,8 @@ void MainWindow::setupAddMenu(QPushButton *btn) {
           &MainWindow::onAddTuiClicked);
   connect(addMenu->addAction("Open Map View"), &QAction::triggered, this,
           &MainWindow::onOpenMapClicked);
+  connect(addMenu->addAction("Add Spectrometer Panel"), &QAction::triggered, this,
+        &MainWindow::onAddSpectrometerClicked);        
   btn->setMenu(addMenu);
 }
 
@@ -543,4 +563,10 @@ void MainWindow::onTabCloseRequested(int index) {
   if (ui->tabWidget->count() <= 1) {       // Only the dummy left
     ui->stackedWidget->setCurrentIndex(0); // Revert to empty state
   }
+}
+void MainWindow::onAddSpectrometerClicked() {
+  SpectrometerWidget *sw = new SpectrometerWidget(this);
+  connect(rosWorker_, &RosWorker::spectrometerUpdated, sw,
+          &SpectrometerWidget::onSpectrometerData);
+  addClosableTab(sw, nextTabTitle("SPEC"));
 }
